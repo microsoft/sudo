@@ -4,7 +4,7 @@ Welcome to the repository for [Sudo for Windows](https://aka.ms/sudo) 🥪. Sudo
 for Windows allows users to run elevated commands direcly from unelevated
 terminal windows.
 
-Sudo is availabe for Windows 11 builds 26045 and later. If you're on an Insiders
+Sudo is available for Windows 11 builds 26045 and later. If you're on an Insiders
 build with sudo, you can enable it in the Windows Settings app, on the
 "Developer Features" page.
 
