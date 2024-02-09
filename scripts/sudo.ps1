@@ -1,87 +1,78 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
+[CmdletBinding(DefaultParameterSetName = "Script")]
+param(
+	[Parameter(Mandatory, Position = 0, ParameterSetName = "Script")]
+	[scriptblock]$ScriptBlock,
 
-# open question - Should -NoProfile be used when invoking PowerShell
-BEGIN {
+	[switch]$NoProfile,
+
+	[Parameter(Mandatory, Position = 0, ParameterSetName = "Command")]
+	[string]$Command,
+
+	[Parameter(Position = 1, ValueFromRemainingArguments)]
+	[Alias("Args")]
+	[PSObject[]]$ArgumentList
+)
+begin {
 	if ($__SUDO_TEST -ne $true) {
-		$SUDOEXE = "sudo.exe"
-	}
-	else {
-		if ($null -eq $SUDOEXE) {
-			throw "variable SUDOEXE has not been set for testing"
-		}
+		$Env:SUDOEXE = "sudo.exe"
+	} elseif (!$Env:SUDOEXE) {
+			throw "Environment variable SUDOEXE has not been set for testing"
 	}
 
-	if ([Environment]::OSVersion.Platform -ne "Win32NT") {
+	if ($IsLinux -or $IsMacOS) {
 		throw "This script works only on Microsoft Windows"
 	}
 
-	if ($null -eq (Get-Command -Type Application -Name "$SUDOEXE" -ErrorAction Ignore)) {
-		throw "'$SUDOEXE' cannot be found."
+	if (!(Get-Command -Type Application -Name $Env:SUDOEXE -ErrorAction Ignore)) {
+		throw "Env:SUDOEXE is set to '$Env:SUDOEXE' but it cannot be found."
 	}
 
-	$psProcess = Get-Process -id $PID
-	if (($null -eq $psProcess) -or ($psProcess.Count -ne 1)) {
-		throw "Cannot retrieve process for '$PID'"
+	$thisPowerShell = (Get-Process -Id $PID).MainModule.FileName
+	if (!$thisPowerShell) {
+		throw "Cannot determine PowerShell executable path."
 	}
 
-	$thisPowerShell = $psProcess.MainModule.FileName
-	if ($null -eq $thisPowerShell) {
-		throw "Cannot determine path to '$psProcess'"
-	}
-
-	function convertToBase64EncodedString([string]$cmdLine) {
-		$bytes = [System.Text.Encoding]::Unicode.GetBytes($cmdLine)
+	function ConvertToBase64EncodedString([string]$InputObject) {
+		$bytes = [System.Text.Encoding]::Unicode.GetBytes($InputObject)
 		[Convert]::ToBase64String($bytes)
 	}
-
-	$MI = $MyInvocation
 }
 
-END {
-	$cmdArguments = $args
-
-	# short-circuit if the user provided a scriptblock, then we will use it and ignore any other arguments
-	if ($cmdArguments.Count -eq 1 -and $cmdArguments[0] -is [scriptblock]) {
-		$scriptBlock = $cmdArguments[0]
-		$encodedCommand = convertToBase64EncodedString -cmdLine ($scriptBlock.ToString())
-		if (($psversiontable.psversion.major -eq 7) -and ($__SUDO_DEBUG -eq $true)) {
-			Trace-Command -PSHOST -name param* -Expression { & $SUDOEXE "$thisPowerShell" -e $encodedCommand }
+end {
+	# If the first parameter is the name of an executable, just run that without PowerShell
+	if ($PSCmdlet.ParameterSetName -eq "Command") {
+		if (@(Get-Command $Command -ErrorAction Ignore)[0].CommandType -eq "Application") {
+			# NOTE: this assumes that all the parameters can be just strings
+			if ($PSBoundParameters.Contains("Debug")) {
+				Trace-Command -PSHost -Name param* -Expression { & $Env:SUDOEXE $Command @ArgumentList }
+			} else {
+				& $Env:SUDOEXE $Command $ArgumentList
+			}
+			return
+		} else {
+			# In this case, we're going to need to _make_ a scriptblock out of $MyInvocation.Statement
+			# NOT $MyInvocation.Line because there might be more than one line in the statement
+			# IISReset and Jaykul apologize for the reflection, but we need to support old versions of PowerShell
+			$Statement = [System.Management.Automation.InvocationInfo].GetMember(
+					'_scriptPosition',
+					[System.Reflection.BindingFlags]'NonPublic,Instance'
+				)[0].GetValue($MyInvocation).Text.
+			# Strip the 'sudo' or 'sudo.ps1` or whatever off the front of the statement
+			$Statement = $Statement.SubString($MyInvocation.InvocationName.Length).Trim()
+			$EncodedCommand = ConvertToBase64EncodedString $Statement
 		}
-		else {
-			& $SUDOEXE "$thisPowerShell" -e $encodedCommand
-		}
-		return
+	} else {
+		$EncodedCommand = ConvertToBase64EncodedString $scriptBlock
 	}
 
-	$cmdLine = $MI.Line
-	$sudoOffset = $cmdLine.IndexOf($MI.InvocationName)
-	$cmdLineWithoutScript = $cmdLine.SubString($sudoOffset + 5)
-	$cmdLineAst = [System.Management.Automation.Language.Parser]::ParseInput($cmdLineWithoutScript, [ref]$null, [ref]$null)
-	$commandAst = $cmdLineAst.Find({$args[0] -is [System.Management.Automation.Language.CommandAst]}, $false)
-	$commandName = $commandAst.GetCommandName()
-	$isApplication = Get-Command -Type Application -Name $commandName -ErrorAction Ignore | Select-Object -First 1
-	$isCmdletOrScript = Get-Command -Type Cmdlet,ExternalScript -Name $commandName -ErrorAction Ignore | Select-Object -First 1
+	$switches = @("-NoLogo", "-NonInteractive")
+	if ($NoProfile)	{ $switches += "-NoProfile" }
 
-	# if the command is a native command, just invoke it
-	if ($null -ne $isApplication) {
-		if (($psversiontable.psversion.major -eq 7) -and ($__SUDO_DEBUG -eq $true)) {
-			trace-command -PSHOST -name param* -Expression { & $SUDOEXE $cmdArguments }
-		}
-		else {
-			& $SUDOEXE $cmdArguments
-		}
-	}
-	elseif ($null -ne $isCmdletOrScript) {
-		$encodedCommand = convertToBase64EncodedString($cmdLineWithoutScript)
-		if (($psversiontable.psversion.major -eq 7) -and ($__SUDO_DEBUG -eq $true)) {
-			trace-command -PSHOST -name param* -Expression { & $SUDOEXE -nologo -e $encodedCommand }
-		}
-		else {
-			& $SUDOEXE $thisPowerShell -nologo -e $encodedCommand
-		}
-	}
-	else {
-		throw "Cannot find '$commandName'"
+	if ($PSBoundParameters.Contains("Debug")) {
+		Trace-Command -PSHost -Name param* -Expression { & $Env:SUDOEXE $ThisPowerShell @switches -EncodedCommand $encodedCommand }
+	} else {
+		& $Env:SUDOEXE $ThisPowerShell @switches -EncodedCommand $encodedCommand
 	}
 }
