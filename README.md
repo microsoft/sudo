@@ -28,7 +28,7 @@ be able to be used directly with Sudo for Windows without some modification.
 All project documentation is located at
 [aka.ms/sudo-docs](https://aka.ms/sudo-docs). If you would like to contribute to
 the documentation, please submit a pull request on the [Sudo for Windows
-Documentation repo](https://github.com/MicrosoftDocs/windows-dev-docs/hub/sudo).
+Documentation repo](https://github.com/MicrosoftDocs/windows-dev-docs/tree/docs/hub/sudo).
 
 ## Contributing
 
