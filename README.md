@@ -72,4 +72,4 @@ additional questions or comments.
 [discussions]: https://github.com/microsoft/sudo/discussions
 [sudo-for-windows]: https://aka.ms/sudo
 [sudo-docs]: https://aka.ms/sudo-docs
-[documentation-repo]: https://github.com/MicrosoftDocs/windows-dev-docs/hub/sudo
+[documentation-repo]: https://github.com/MicrosoftDocs/windows-dev-docs/tree/docs/hub/sudo
