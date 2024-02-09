@@ -26,7 +26,7 @@ BEGIN {
 	}
 
 	$thisPowerShell = $psProcess.MainModule.FileName
-	if ($thisPowerShell -eq $null) {
+	if ($null -eq $thisPowerShell) {
 		throw "Cannot determine path to '$psProcess'"
 	}
 
@@ -54,10 +54,9 @@ END {
 		return
 	}
 
-	$iam = $MI.MyCommand.ToString()
 	$cmdLine = $MI.Line
 	$sudoOffset = $cmdLine.IndexOf($MI.InvocationName)
-	$cmdLineWithoutScript = $cmdLine.SubString($sudoOffet + 5)
+	$cmdLineWithoutScript = $cmdLine.SubString($sudoOffset + 5)
 	$cmdLineAst = [System.Management.Automation.Language.Parser]::ParseInput($cmdLineWithoutScript, [ref]$null, [ref]$null)
 	$commandAst = $cmdLineAst.Find({$args[0] -is [System.Management.Automation.Language.CommandAst]}, $false)
 	$commandName = $commandAst.GetCommandName()
