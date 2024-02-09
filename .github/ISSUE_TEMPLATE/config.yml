@@ -1,0 +1,12 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: Have a question? 🤔
+    url: https://github.com/microsoft/sudo/discussions
+    about: Have question about sudo you think we can answer? Try a discussion thread!
+  - name: Microsoft Security Response Center 🔐
+    url: https://msrc.microsoft.com/create-report
+    about: Please report security vulnerabilities here.
+  - name: Sudo for Windows Documentation issue 📄
+    url: https://github.com/MicrosoftDocs/windows-dev-docs/hub/sudo
+    about: Report issues with the documentation for Sudo for Windows (in https://learn.microsoft.com/windows/sudo)
