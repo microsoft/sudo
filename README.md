@@ -13,7 +13,7 @@ open-sourcing the code, so stay tuned for more updates.
 
 ## Relationship to `sudo` on Linux
 
-Obviously, the everything about permissions and the command line experience is
+Obviously, everything about permissions and the command line experience is
 different between Windows and Linux. This project is not a fork of the Linux
 `sudo` project, nor is it a port of the Linux `sudo` project. Instead, Sudo for
 Windows is a Windows-specific implementation of the `sudo` concept.
