@@ -1,6 +1,6 @@
 # ![Sudo for Windows icon](./img/Windows/AppList.targetsize-24.png) Sudo for Windows
 
-Welcome to the repository for [Sudo for Windows](https://aka.ms/sudo) 🥪. Sudo
+Welcome to the repository for [Sudo for Windows][sudo-for-windows] 🥪. Sudo
 for Windows allows users to run elevated commands directly from unelevated
 terminal windows.
 
@@ -26,9 +26,9 @@ be able to be used directly with Sudo for Windows without some modification.
 ## Documentation
 
 All project documentation is located at
-[aka.ms/sudo-docs](https://aka.ms/sudo-docs). If you would like to contribute to
+[aka.ms/sudo-docs][sudo-docs]. If you would like to contribute to
 the documentation, please submit a pull request on the [Sudo for Windows
-Documentation repo](https://github.com/MicrosoftDocs/windows-dev-docs/hub/sudo).
+Documentation repo][documentation-repo].
 
 ## Contributing
 
@@ -49,7 +49,7 @@ Please file new issues, feature requests and suggestions, but **DO search for
 similar open/closed preexisting issues before creating a new issue.**
 
 If you would like to ask a question that you feel doesn't warrant an issue
-(yet), try a [discussion thread]. Those are especially helpful for question &
+(yet), try a [discussion thread][discussions]. Those are especially helpful for question &
 answer threads. Otherwise, you can reach out to us via your social media
 platform of choice:
 
@@ -69,4 +69,7 @@ additional questions or comments.
 [conduct-FAQ]: https://opensource.microsoft.com/codeofconduct/faq/
 [conduct-email]: mailto:opencode@microsoft.com
 [`sudo.ps1`]: ./scripts/sudo.ps1
-[discussion thread]: https://github.com/microsoft/sudo/discussions
+[discussions]: https://github.com/microsoft/sudo/discussions
+[sudo-for-windows]: https://aka.ms/sudo
+[sudo-docs]: https://aka.ms/sudo-docs
+[documentation-repo]: https://github.com/MicrosoftDocs/windows-dev-docs/hub/sudo
