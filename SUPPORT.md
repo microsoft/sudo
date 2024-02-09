@@ -9,11 +9,11 @@ a new issue.
 
 For help and questions about using this project, please look at the [docs site
 for Sudo for Windows][docs] and our [Contributor's Guide][contributor] if you
-want to work on Windows Terminal.
+want to work on Sudo for Windows.
 
 ## Microsoft Support Policy
 
-Support for Windows Terminal is limited to the resources listed above.
+Support for Sudo for Windows is limited to the resources listed above.
 
 [gh-issue]: https://github.com/microsoft/sudo/issues/new/choose
 [gh-bug]: https://github.com/microsoft/sudo/issues/new?assignees=&labels=Issue-Bug&template=bug_report.md&title=
