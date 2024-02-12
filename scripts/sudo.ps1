@@ -3,6 +3,10 @@
 
 # open question - Should -NoProfile be used when invoking PowerShell
 BEGIN {
+	if ([Environment]::OSVersion.Platform -ne "Win32NT") {
+		throw "This script works only on Microsoft Windows"
+	}
+
 	if ($__SUDO_TEST -ne $true) {
 		$SUDOEXE = "sudo.exe"
 	}
@@ -10,10 +14,6 @@ BEGIN {
 		if ($null -eq $SUDOEXE) {
 			throw "variable SUDOEXE has not been set for testing"
 		}
-	}
-
-	if ([Environment]::OSVersion.Platform -ne "Win32NT") {
-		throw "This script works only on Microsoft Windows"
 	}
 
 	if ($null -eq (Get-Command -Type Application -Name "$SUDOEXE" -ErrorAction Ignore)) {
