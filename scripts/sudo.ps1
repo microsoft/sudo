@@ -38,7 +38,7 @@ begin {
 	if ($__SUDO_TEST -ne $true) {
 		$Env:SUDOEXE = "sudo.exe"
 	} elseif (!$Env:SUDOEXE) {
-			throw "Environment variable SUDOEXE has not been set for testing"
+		throw "Environment variable SUDOEXE has not been set for testing"
 	}
 
 	if (!(Get-Command -Type Application -Name $Env:SUDOEXE -ErrorAction Ignore)) {
