@@ -1,16 +1,32 @@
+<#
+	.SYNOPSIS
+		Runs a scriptblock, command or application as an elevated process using sudo.exe
+	.DESCRIPTION
+		Wraps sudo.exe to add functionality for running PowerShell scripts or commands in an elevated process.
+
+		When running a scriptblock or PowerShell command, a new copy of PowerShell is run with sudo and an EncodedCommand.
+		When running a native application, the command itself is run with sudo.
+
+		This script DOES NOT (currently) support piping input to the elevated command.
+#>
+
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 [CmdletBinding(DefaultParameterSetName = "Script")]
 param(
+	# A scriptblock to run in an elevated process
 	[Parameter(Mandatory, Position = 0, ParameterSetName = "Script")]
 	[scriptblock]$ScriptBlock,
 
+	# Run PowerShell with the -NoProfile switch
 	[switch]$NoProfile,
 
+	# A command or application to run in an elevated process
 	[Parameter(Mandatory, Position = 0, ParameterSetName = "Command")]
 	[string]$Command,
 
-	[Parameter(Position = 1, ValueFromRemainingArguments)]
+	# Arguments to pass to the command or application
+	[Parameter(Position = 1, ParameterSetName = "Command", ValueFromRemainingArguments)]
 	[Alias("Args")]
 	[PSObject[]]$ArgumentList
 )
