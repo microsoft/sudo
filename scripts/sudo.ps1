@@ -15,14 +15,14 @@ param(
 	[PSObject[]]$ArgumentList
 )
 begin {
+	if ($IsLinux -or $IsMacOS) {
+		throw "This script works only on Microsoft Windows"
+	}
+
 	if ($__SUDO_TEST -ne $true) {
 		$Env:SUDOEXE = "sudo.exe"
 	} elseif (!$Env:SUDOEXE) {
 			throw "Environment variable SUDOEXE has not been set for testing"
-	}
-
-	if ($IsLinux -or $IsMacOS) {
-		throw "This script works only on Microsoft Windows"
 	}
 
 	if (!(Get-Command -Type Application -Name $Env:SUDOEXE -ErrorAction Ignore)) {
