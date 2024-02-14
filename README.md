@@ -11,16 +11,16 @@ build with sudo, you can enable it in the Windows Settings app, on the
 Here you can report issues and file feature requests. We're in the process of
 open-sourcing the code, so stay tuned for more updates.
 
-## Relationship to `sudo` on Linux
+## Relationship to `sudo` on Unix/Linux
 
 Obviously, everything about permissions and the command line experience is
-different between Windows and Linux. This project is not a fork of the Linux
-`sudo` project, nor is it a port of the Linux `sudo` project. Instead, Sudo for
+different between Windows and Linux. This project is not a fork of the Unix/Linux
+`sudo` project, nor is it a port of that `sudo` project. Instead, Sudo for
 Windows is a Windows-specific implementation of the `sudo` concept.
 
 As the two are entirely different applications, you'll find that certain
-elements of the Linux `sudo` experience are not present in Sudo for Windows, and
-vice versa. Scripts and documentation that are written for Linux `sudo` may not
+elements of the traditional `sudo` experience are not present in Sudo for Windows, and
+vice versa. Scripts and documentation that are written for `sudo` may not
 be able to be used directly with Sudo for Windows without some modification.
 
 ## Documentation
