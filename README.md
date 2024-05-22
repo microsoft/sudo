@@ -11,6 +11,7 @@ build with sudo, you can enable it in the Windows Settings app, on the
 Here you can report issues and file feature requests. We're in the process of
 open-sourcing the code, so stay tuned for more updates.
 
+
 ## Relationship to `sudo` on Unix/Linux
 
 Obviously, everything about permissions and the command line experience is
