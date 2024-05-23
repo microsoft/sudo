@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!--
+    Microsoft ResX Schema
+
+    Version 2.0
+
+    The primary goals of this format is to allow a simple XML format
+    that is mostly human readable. The generation and parsing of the
+    various data types are done through the TypeConverter classes
+    associated with the data types.
+
+    Example:
+
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+
+    There are any number of "resheader" rows that contain simple
+    name/value pairs.
+
+    Each data row contains a name, and value. The row also contains a
+    type or mimetype. Type corresponds to a .NET class that support
+    text/value conversion through the TypeConverter architecture.
+    Classes that don't support this are serialized and stored with the
+    mimetype set.
+
+    The mimetype is used for serialized objects, and tells the
+    ResXResourceReader how to depersist the object. This is currently not
+    extensible. For a given mimetype the value must be set accordingly:
+
+    Note - application/x-microsoft.net.object.binary.base64 is the format
+    that the ResXResourceWriter will generate, however the reader can
+    read any of the formats listed below.
+
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SudoName" xml:space="preserve">
+    <value>Sudo for Windows</value>
+    <comment>{Locked=qps-ploc,qps-ploca,qps-plocm}</comment>
+  </data>
+  <data name="LongAbout" xml:space="preserve">
+    <value>Sudo for Windows.
+Can be used to run a command as admin. When run, will prompt for confirmation with a User Accounts Control dialog. Currently only supports running commands as the admin user who confirms the dialog.
+
+If used to run a console application, sudo will return when the target process exits.
+If used to run a graphical application (for example, notepad.exe), sudo will return immediately.
+
+In New Window mode, sudo will launch applications from the Windows directory in C:\\Windows\\System32. You can use the --chdir option to change the working directory before running the command.
+
+If a mode is omitted, sudo will use the mode set in the system settings. If a mode is specified with one of --new-window, --disable-input, or --inline, sudo will exit with an error if that mode is not currently allowed by the system settings.
+</value>
+    <comment>{Locked="sudo","notepad.exe","C:\\Windows\\System32","--chdir"}</comment>
+  </data>
+  <data name="DisabledLongAbout" xml:space="preserve">
+    <value>Sudo is disabled on this machine. To enable it, go to the \x1b]8;;ms-settings:developers\x1b\\Developer Settings page\x1b]8;;\x1b\\ in the Settings app</value>
+    <comment>{Locked="\x1b]8;;ms-settings:developers\x1b\\","\x1b]8;;\x1b\\"}</comment>
+  </data>
+  <data name="Base_Help_Help_Long" xml:space="preserve">
+    <value>Print help (see less with '-h')</value>
+    <comment>{Locked="-h"}</comment>
+  </data>
+  <data name="Base_Help_Help_Short" xml:space="preserve">
+    <value>Print help (see more with '--help')</value>
+    <comment>{Locked="--help"}</comment>
+  </data>
+  <data name="Base_Version_Help" xml:space="preserve">
+    <value>Print version</value>
+  </data>
+  <data name="Elevate_About" xml:space="preserve">
+    <value>The elevate subcommand is for internal use only</value>
+    <comment>{Locked="elevate"}</comment>
+  </data>
+  <data name="Elevate_Parent" xml:space="preserve">
+    <value>Parent process ID</value>
+  </data>
+  <data name="Elevate_Commandline" xml:space="preserve">
+    <value>Command-line to run</value>
+  </data>
+  <data name="Config_About" xml:space="preserve">
+    <value>Get current configuration information of sudo</value>
+  </data>
+  <data name="Run_About" xml:space="preserve">
+    <value>Run a command as admin</value>
+  </data>
+  <data name="Run_CopyEnv_Help" xml:space="preserve">
+    <value>Pass the current environment variables to the command</value>
+  </data>
+  <data name="Run_NewWindow_Help" xml:space="preserve">
+    <value>Use a new window for the command</value>
+  </data>
+  <data name="Run_DisableInput_Help" xml:space="preserve">
+    <value>Run in the current terminal, with input to the target application disabled</value>
+  </data>
+  <data name="Run_Inline_Help" xml:space="preserve">
+    <value>Run in the current terminal</value>
+    <comment>Description of a command-line flag that will cause sudo to run the target application in the current console window.</comment>
+  </data>
+  <data name="Run_Commandline_Help" xml:space="preserve">
+    <value>Command-line to run</value>
+  </data>
+  <data name="DisabledByPolicy" xml:space="preserve">
+    <value>Sudo is disabled by your organization's policy.</value>
+  </data>
+  <data name="DisabledMessage" xml:space="preserve">
+    <value>Sudo is disabled on this machine.</value>
+  </data>
+  <data name="InvalidMode" xml:space="preserve">
+    <value>Invalid mode:</value>
+    <comment>This string will be followed by a string the user entered (which was and invalid value)</comment>
+  </data>
+  <data name="ErrorSettingMode" xml:space="preserve">
+    <value>Error setting mode:</value>
+    <comment>This string will be followed by an error message</comment>
+  </data>
+  <data name="UnknownError" xml:space="preserve">
+    <value>Unknown error:</value>
+    <comment>This string will be followed by an error message</comment>
+  </data>
+  <data name="CurrentMode_ForceNewWindow" xml:space="preserve">
+    <value>Sudo is currently in Force New Window mode on this machine</value>
+  </data>
+  <data name="CurrentMode_DisableInput" xml:space="preserve">
+    <value>Sudo is currently in Disable Input mode on this machine</value>
+    <comment>Message printed to the user informing them of the current sudo mode. In this case, the mode is the "Disable Input" mode.</comment>
+  </data>
+  <data name="CurrentMode_Inline" xml:space="preserve">
+    <value>Sudo is currently in Inline mode on this machine</value>
+  </data>
+  <data name="RequireAdminToConfig" xml:space="preserve">
+    <value>You must run this command as an administrator.</value>
+  </data>
+  <data name="MaxPolicyMode_ForceNewWindow" xml:space="preserve">
+    <value>You cannot set a mode higher than Force New Window mode on this machine</value>
+    <comment>Error message printed when the user attempts to set sudo into a mode higher than the mode currently allowed by policy. In this case, the currently allowed mode is the "Force New Window" mode.</comment>
+  </data>
+  <data name="MaxPolicyMode_DisableInput" xml:space="preserve">
+    <value>You cannot set a mode higher than Disable Input mode on this machine</value>
+    <comment>Error message printed when the user attempts to set sudo into a mode higher than the mode currently allowed by policy. In this case, the currently allowed mode is the "Disable Input" mode.</comment>
+  </data>
+  <data name="MaxPolicyMode_Inline" xml:space="preserve">
+    <value>You cannot set a mode higher than Inline mode on this machine</value>
+    <comment>Error message printed when the user attempts to set sudo into a mode higher than the mode currently allowed by policy. In this case, the currently allowed mode is the "Inline" mode.</comment>
+  </data>
+  <data name="SetMode_ForceNewWindow" xml:space="preserve">
+    <value>Sudo mode set to Force New Window mode</value>
+  </data>
+  <data name="SetMode_DisableInput" xml:space="preserve">
+    <value>Sudo mode set to DisableInput mode</value>
+  </data>
+  <data name="SetMode_Inline" xml:space="preserve">
+    <value>Sudo mode set to Inline mode</value>
+  </data>
+  <data name="CommandNotFound" xml:space="preserve">
+    <value>Command not found</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>Operation was cancelled by the user</value>
+  </data>
+  <data name="LaunchedNewWindow" xml:space="preserve">
+    <value>Launched {0} in a new window.</value>
+    <comment>{0} will be replaced by the name of a command-line executable</comment>
+  </data>
+  <data name="Run_Chdir_Help" xml:space="preserve">
+    <value>Change the working directory before running the command</value>
+  </data>
+  <data name="MaxRunMode_ForceNewWindow" xml:space="preserve">
+    <value>You cannot run in a mode higher than Force New Window mode on this machine</value>
+    <comment>Error message printed when the user requested a mode higher than the currently allowed mode. In this case, the currently allowed mode is the "Force New Window" mode.</comment>
+  </data>
+  <data name="MaxRunMode_DisableInput" xml:space="preserve">
+    <value>You cannot run in a mode higher than Disable Input mode on this machine</value>
+    <comment>Error message printed when the user requested a mode higher than the currently allowed mode. In this case, the currently allowed mode is the "Disable Input" mode.</comment>
+  </data>
+  <data name="MaxRunMode_Inline" xml:space="preserve">
+    <value>You cannot run in a mode higher than Inline mode on this machine</value>
+    <comment>Error message printed when the user requested a mode higher than the currently allowed mode. In this case, the currently allowed mode is the "Inline" mode.</comment>
+  </data>
+  <data name="PreserveEnv_Disallowed" xml:space="preserve">
+    <value>You are not allowed to preserve environment variables</value>
+    <comment>Error message printed when the user tries to preserve environment variables, but is not allowed to</comment>
+  </data>
+  <data name="Sudo_Disallowed" xml:space="preserve">
+    <value>You are not allowed to run sudo</value>
+    <comment>Error message printed when the user is not allowed to run sudo because they aren't an administrator</comment>
+  </data>
+  <data name="Run_SetHome_Help" xml:space="preserve">
+    <value>set USERPROFILE variable to target user's USERPROFILE</value>
+    <comment>{Locked="USERPROFILE"} Help text for a commandline arg that sets the USERPROFILE variable</comment>
+  </data>
+</root>

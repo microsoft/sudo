@@ -1,0 +1,103 @@
+# Core build logic that is common to all OneBranch builds.
+parameters: # parameters are shown up in ADO UI in a build queue time
+- name: buildPlatforms
+  type: object
+  default:
+    - x86_64-pc-windows-msvc # x64
+    - i686-pc-windows-msvc # x86
+    - aarch64-pc-windows-msvc # arm64
+    # - # arm32?
+
+- name: brandings
+  type: object
+  default:
+    - Inbox
+    - Stable
+    - Dev
+
+- name: tracingGuid
+  type: string
+  default: ffffffff-ffff-ffff-ffff-ffffffffffff
+
+steps:
+- task: RustInstaller@1
+  inputs:
+    # Can be any "MSRustup" version, such as ms-stable, ms-1.54 or ms-stable-20210513.5 - for more details see https://mscodehub.visualstudio.com/Rust/_git/rust.msrustup
+    # For supported versions see https://mscodehub.visualstudio.com/Rust/_packaging?_a=package&feed=Rust&view=versions&package=rust.tools-x86_64-pc-windows-msvc&protocolType=NuGet
+    # We recommend setting this to a specific numbered version such as `ms-1.68` -- we do not recommend
+    # setting it to `ms-stable`.
+    # For details on this, see https://eng.ms/docs/more/rust/topics/conventions#toolchain-usage
+    rustVersion: ms-1.75
+
+    # Space separated list of additional targets: only the host target is supported with the toolchain by default.
+    #
+    # This doesn't actually control what gets built - only which toolchains get installed on the build agent.
+    #
+    # Theoretically, I could somehow replace this with the buildPlatforms passed in as a parameter
+    additionalTargets: i686-pc-windows-msvc aarch64-pc-windows-msvc x86_64-pc-windows-msvc
+
+    # URL of an Azure Artifacts feed configured with a crates.io upstream. Must be within the current ADO collection.
+    # NOTE: Azure Artifacts support for Rust is not yet public, but it is enabled for internal ADO organizations.
+    # https://learn.microsoft.com/en-us/azure/devops/artifacts/how-to/set-up-upstream-sources?view=azure-devops
+    cratesIoFeedOverride: sparse+https://pkgs.dev.azure.com/microsoft/Dart/_packaging/sudo_public_cargo/Cargo/index/
+
+    # URL of an Azure Artifacts NuGet feed configured with the mscodehub Rust feed as an upstream.
+    # * The feed must be within the current ADO collection.
+    # * The CI account, usually "Project Collection Build Service (org-name)", must have at least "Collaborator" permission.
+    # When setting up the upstream NuGet feed, use following Azure Artifacts feed locator:
+    #   azure-feed://mscodehub/Rust/Rust@Release
+    toolchainFeed: https://pkgs.dev.azure.com/microsoft/_packaging/RustTools/nuget/v3/index.json
+
+  displayName: Install Rust toolchain
+
+# We recommend making a separate `cargo fetch` step, as some build systems
+# perform fetching entirely prior to the build, and perform the build with the
+# network disabled.
+- script: cargo fetch
+  displayName: Fetch crates
+
+# First, build and test each branding.
+- ${{ each brand in parameters.brandings }}:
+  - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen 2>&1
+    displayName: Build ${{brand}} Debug
+
+  - script: cargo test --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen 2>&1
+    displayName: Test ${{brand}} Debug
+
+# We suggest fmt and clippy after build and test, to catch build breaks and test
+# failures as quickly as possible.
+# This only needs to happen once, not per-branding.
+- script: cargo fmt --check 2>&1
+  displayName: Check formatting
+
+- ${{ each brand in parameters.brandings }}:
+  - script: cargo clippy --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen -- -D warnings 2>&1
+    displayName: Clippy (Linting) ${{brand}}
+
+  # Build release last because it takes the longest and we should have gotten
+  # all available error signal by this point.
+  - ${{ each platform in parameters.buildPlatforms }}:
+    - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --target ${{platform}} --frozen --release 2>&1
+      env:
+        MAGIC_TRACING_GUID: ${{ parameters.tracingGuid }}
+      displayName: Build ${{brand}}-${{platform}} Release
+
+    # At this point, we've completed the build, but each of the outputs is in a
+    # subdir specific to the architecture being built. That's okay, but the artifact
+    # drop won't know to look for them in there.
+    #
+    # Copy them on out.
+    - task: CopyFiles@2
+      displayName: Copy files to output (${{brand}}/${{platform}})
+      inputs:
+        sourceFolder: '$(CARGO_TARGET_DIR)/${{platform}}/release'
+        targetFolder: '$(ob_outputDirectory)/${{brand}}/${{platform}}'
+        contents: '*'
+
+# only do this once
+- task: CopyFiles@2
+  displayName: Copy instrumentation manifest to output
+  inputs:
+    sourceFolder: 'cpp/logging'
+    targetFolder: '$(ob_outputDirectory)/'
+    contents: 'instrumentation.man'

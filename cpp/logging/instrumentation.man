@@ -1,0 +1,93 @@
+<instrumentationManifest
+    xmlns="http://schemas.microsoft.com/win/2004/08/events"
+    xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    >
+    <instrumentation>
+        <events>
+            <provider name="Microsoft-Windows-Sudo"
+                guid="{9d74dc62-b75f-54cd-be9e-c28940b5feed}"
+                symbol="PROVIDER_GUID"
+                resourceFileName="%systemroot%\System32\sudo.exe"
+                messageFileName="%systemroot%\System32\sudo.exe"
+                message="$(string.Provider.Name)">
+                <!-- Note to reviewers! Make sure the above both point at %systemroot%\System32\sudo.exe -->
+
+                <keywords>
+                    <keyword name="Client" symbol="CLIENT_KEYWORD" mask="0x1" />
+                    <keyword name="Server" symbol="SERVER_KEYWORD" mask="0x2" />
+                </keywords>
+
+                <channels>
+                    <channel chid="c1"
+                             name="Microsoft-Windows-Sudo/Admin"
+                             type="Admin"
+                             enabled="true"
+                             />
+                </channels>
+
+                <templates>
+                    <template tid="SudoCommandlineTemplate">
+                        <data name="Application" inType="win:AnsiString" outType="win:Utf8" />
+                        <data name="ArgsCount" inType="win:UInt32" />
+                        <data name="Argument" inType="win:AnsiString" outType="win:Utf8" count="ArgsCount" />
+                        <data name="CurrentWorkingDirectory" inType="win:AnsiString" outType="win:Utf8" />
+                        <data name="Mode" inType="win:UInt32" />
+                        <data name="InheritEnvironment" inType="win:UInt8" outType="xs:boolean" />
+                        <data name="Redirected" inType="win:UInt8" outType="xs:boolean" />
+                        <data name="FullCommandline" inType="win:AnsiString" outType="win:Utf8" />
+                        <data name="RequestID" inType="win:GUID"/>
+
+                        <UserData>
+                            <EventData xmlns="ProviderNamespace">
+                                <Application> %1 </Application>
+                                <ArgsCount> %2 </ArgsCount>
+                                <Argument> %3 </Argument>
+                                <CurrentWorkingDirectory> %4 </CurrentWorkingDirectory>
+                                <Mode> %5 </Mode>
+                                <InheritEnvironment> %6 </InheritEnvironment>
+                                <Redirected> %7 </Redirected>
+                                <FullCommandline> %8 </FullCommandline>
+                                <RequestID> %9 </RequestID>
+                            </EventData>
+                        </UserData>
+                    </template>
+
+                </templates>
+
+                <events>
+                    <event value="1"
+                        level="win:Informational"
+                        template="SudoCommandlineTemplate"
+                        symbol="SudoRequestRunEvent"
+                        message="$(string.Event.FullSudoCommandline)"
+                        channel="c1"
+                        keywords="Client" />
+                    <event value="2"
+                        level="win:Informational"
+                        template="SudoCommandlineTemplate"
+                        symbol="SudoRecieveRunRequestEvent"
+                        message="$(string.Event.FullSudoCommandline)"
+                        channel="c1"
+                        keywords="Server" />
+                </events>
+
+            </provider>
+
+        </events>
+
+    </instrumentation>
+
+    <localization>
+        <resources culture="en-US">
+            <stringTable>
+
+                <string id="Provider.Name" value="Microsoft-Windows-Sudo"/>
+
+                <string id="Event.FullSudoCommandline" value="%8"/>
+
+            </stringTable>
+        </resources>
+    </localization>
+
+</instrumentationManifest>

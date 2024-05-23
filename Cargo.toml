@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "sudo",
+    "sudo_events",
+    "win32resources",
+]
+
+# This list of dependencies allows us to specify version numbers for dependency in a single place.
+# The dependencies in this list are _not_ automatically added to crates (Cargo.toml files).
+# Each individual Cargo.toml file must explicitly declare its dependencies. To use a dependency
+# from this list, specify "foo.workspace = true". For example:
+#
+#     [dependencies]
+#     log.workspace = true
+#
+# See: https://doc.rust-lang.org/cargo/reference/workspaces.html#the-dependencies-table
+#
+[workspace.dependencies]
+cc = "1.0"
+# We're disabling the default features for clap because we don't need the
+# "suggestions" feature. That provides really amazing suggestions for typos, but
+# it unfortunately does not seem to support localization.
+#
+# To use clap at all, you do need the std feature enabled, so enable that.
+#
+# See: https://docs.rs/clap/latest/clap/_features/index.html
+clap = { version = "4.4.7", default_features = false, features = ["std"] }
+embed-manifest = "1.4"
+which = "6.0"
+win_etw_provider = "0.1.8"
+win_etw_macros = "0.1.8"
+windows = "0.54"
+windows-registry = "0.1"
+winres = "0.1"
+
+# For more profile settings, and details on the ones below, see https://doc.rust-lang.org/cargo/reference/profiles.html#profile-settings
+[profile.release]
+# Enable full debug info for optimized builds.
+debug = "full"
+# Split debuginfo into its own file to reduce binary size.
+split-debuginfo = "packed"
+lto = true
+panic = "abort"

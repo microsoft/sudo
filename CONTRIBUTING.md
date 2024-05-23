@@ -1,10 +1,5 @@
 # Sudo for Windows Contributor's Guide
 
-**Sudo for Windows is not currently open source**. We're still in the process of
-crossing our "t"'s and dotting our "i"s. Stay tuned for more updates. In the
-meantime, we are still accepting issues, feature requests, and contributions to
-the [`sudo.ps1`] script.
-
 Below is our guidance for how to report issues, propose new features, and submit
 contributions via Pull Requests (PRs). Our philosophy is heavily based around
 understanding the problem and scenarios first, this is why we follow this
@@ -63,7 +58,52 @@ and fix them. However we currently don't accept community Pull Requests fixing
 localization issues. Localization is handled by the internal Microsoft team
 only.
 
-### Repo Bot
+## Contributing code
+
+As you might imagine, shipping something inside of Windows is a complicated
+process--doubly so for a security component. There is a lot of validation and
+paperwork that we don't really want to subject the community to. We want you to
+be able to contribute easily and freely, and to let us deal with the paperwork.
+We'll do our best to make sure this process is as seamless as possible.
+
+To support the community in building new feature areas for Sudo for Windows,
+we're going to make extensive use of feature flags, to conditionally add new
+features to Sudo for Windows.
+
+When contributing to Sudo for Windows, we will treat "bugfixes" and "features"
+separately. Bug fixes can be merged into the codebase freely, so long as they
+don't majorly change existing behaviors. New features will need to have their
+code guarded by feature flag checks before we can accept them as contributions.
+
+As always, filing issues on the repo is the best way to have the team evaluate
+if the change you're proposing would be considered a "bug fix" or "feature"
+work. We will indicate which is which using the `Issue-Bug` and
+`Issue-Feature`/`Issue-Task` labels. These labels are intended to be informative,
+and may change throughout the lifecycle of a discussion.
+
+We'll be grouping sets of feature flags into different "branding"s throughout
+the project. These brandings are as follows:
+* **"Inbox"**: These are features that are included in the version of sudo that
+  ships with Windows itself.
+* **"Stable"**: Features that ship in stable versions of sudo released here on
+  GitHub and on WinGet.
+* **"Dev"**: The least stable features, which are only built in local development
+  builds. These are for work-in-progress features, that aren't quite ready for
+  public consumption
+
+All new features should be added under the "Dev" branding first. The core team
+will then be responsible for moving those features into the appropriate branding
+as we get internal signoffs. This will allow features to be worked on
+continually in the open, while we slowly roll them into the OS product. We
+unfortunately cannot provide timelines for when features will be able to move
+from Stable into Inbox. Historical data showing that a feature has a track
+record of being stable and secure is a great way for us to justify any
+particular feature's inclusion into the product.
+
+If you're ready to jump in, head on over to [Building.md](./Building.md) to get
+started.
+
+## Repo Bot
 
 The team triages new issues several times a week. During triage, the team uses
 labels to categorize, manage, and drive the project workflow.

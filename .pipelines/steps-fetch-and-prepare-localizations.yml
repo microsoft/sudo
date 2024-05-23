@@ -1,0 +1,23 @@
+parameters:
+  - name: includePseudoLoc
+    type: boolean
+    default: true
+
+steps:
+  - task: TouchdownBuildTask@3
+    displayName: Download Localization Files
+    inputs:
+      teamId: 92350
+      TDBuildServiceConnection: $(TouchdownServiceConnection)
+      authType: SubjectNameIssuer
+      resourceFilePath: |
+        **\en-US\*.resw
+      appendRelativeDir: true
+      localizationTarget: false
+      ${{ if eq(parameters.includePseudoLoc, true) }}:
+        pseudoSetting: Included
+
+  - pwsh: |-
+      $Files = Get-ChildItem . -R -Filter 'Resources.resw' | ? FullName -Like '*en-US\*\Resources.resw'
+      $Files | % { Move-Item -Verbose $_.Directory $_.Directory.Parent.Parent -EA:Ignore }
+    displayName: Move Loc files into final locations

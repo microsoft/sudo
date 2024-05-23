@@ -1,0 +1,83 @@
+[package]
+name = "sudo"
+version = "1.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+build = "build.rs"
+
+[[bin]]
+test = true
+name = "sudo"
+
+[build-dependencies]
+winres.workspace = true
+cc.workspace = true
+embed-manifest.workspace = true
+which = { workspace = true }
+
+[dependencies]
+
+clap = { workspace = true, default_features = false, features = ["color", "help", "usage", "error-context"] }
+which = { workspace = true }
+windows-registry = { workspace = true }
+
+sudo_events = { path = "../sudo_events" }
+win32resources = { path = "../win32resources" }
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Wdk_Foundation",
+    "Wdk_System_Threading",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_Etw",
+    "Win32_System_Environment",
+    "Win32_System_Kernel",
+    "Win32_System_Memory",
+    "Win32_System_Registry",
+    "Win32_System_Rpc",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+[features]
+# We attempt to use feature flags in a similar way to how the rest of the
+# Windows codebase does. We've got a set of "brandings", each which contain a
+# set of feature flags. Each branding is a superset of the previous branding,
+# and is progressively "less stable" that the previous.
+#
+# The idea is that we can build with a specific branding, and get all the
+# features that are enabled for that branding, plus all the "more stable" ones.
+#
+# We default to "Dev" branding, which has all the code turned on. Call `cargo
+# build --no-default-features --features Inbox` to just get the inbox build (for
+# example).
+
+############################################
+# Feature flags
+Feature_test_flag = [] # This is a test feature flag, to demo how they can be used.
+
+############################################
+# Branding
+# Put each individual feature flag into ONE of the following brandings
+Inbox = []
+Stable = ["Inbox"]
+Dev = ["Stable", "Feature_test_flag"]
+
+# by default, build everything. This is a little different than you'd typically
+# expect for a rust crate, but since we're not actually expecting anyone to be
+# ingesting us as a crate, it's fine.
+default = ["Dev"]
+
