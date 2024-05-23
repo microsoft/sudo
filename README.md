@@ -32,7 +32,7 @@ Documentation repo][documentation-repo].
 
 ## Contributing
 
-Checkout [CONTRIBUTING.md](https://github.com/microsoft/sudo/blob/main/CONTRIBUTING.md) for details on how to contribute to this project.
+Check out [CONTRIBUTING.md](https://github.com/microsoft/sudo/blob/main/CONTRIBUTING.md) for details on how to contribute to this project.
 
 ### `sudo.ps1`
 
