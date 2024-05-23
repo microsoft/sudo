@@ -1,0 +1,8 @@
+[package]
+name = "sudo_events"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+win_etw_macros.workspace = true
+win_etw_provider.workspace = true

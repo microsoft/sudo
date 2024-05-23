@@ -1,0 +1,30 @@
+// This is where GUID is defined:
+import "wtypesbase.idl";
+
+typedef struct tagUTF8_STRING {
+    DWORD length;
+    [size_is(length)] const unsigned char *data;
+} UTF8_STRING;
+
+[
+    uuid (f691b703-f681-47dc-afcd-034b2faab911), // You must change this when you change the interface
+    version(1.0),
+]
+interface sudo_rpc
+{
+    HRESULT DoElevationRequest(
+        [in] handle_t binding,
+        [in, system_handle(sh_process)] HANDLE parent_handle,
+        [in, system_handle(sh_pipe), unique, size_is(3)] const HANDLE* pipe_handles, // in, out, err
+        [in, system_handle(sh_file), unique, size_is(3)] const HANDLE* file_handles, // in, out, err
+        [in] DWORD sudo_mode,
+        [in] UTF8_STRING application,
+        [in] UTF8_STRING args, // a null-delimited list
+        [in] UTF8_STRING target_dir,
+        [in] UTF8_STRING env_vars, // a null-delimited list
+        [in] GUID eventId,
+        [out, system_handle(sh_process)] HANDLE* child
+    );
+
+    void Shutdown([in] handle_t h1);
+}

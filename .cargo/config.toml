@@ -1,0 +1,16 @@
+# -Ccontrol-flow-guard: Enable Control Flow Guard, needed for OneBranch's post-build analysis (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard).
+[target.'cfg(target_os = "windows")']
+rustflags = [
+    "-Ccontrol-flow-guard",
+    "-Ctarget-feature=+crt-static",
+    "-Clink-args=/DEFAULTLIB:ucrt.lib /NODEFAULTLIB:vcruntime.lib /NODEFAULTLIB:msvcrt.lib /NODEFAULTLIB:libucrt.lib"
+]
+
+# This fixes the following linker error on x86:
+#   error LNK2019: unresolved external symbol _NdrClientCall4 referenced in function ...
+[target.'cfg(all(target_os = "windows", target_arch = "x86"))']
+rustflags = ["-Clink-args=/DEFAULTLIB:rpcrt4.lib"]
+
+# -Clink-args=/DYNAMICBASE /CETCOMPAT: Enable "shadow stack" (https://learn.microsoft.com/en-us/cpp/build/reference/cetcompat)
+[target.'cfg(all(target_os = "windows", any(target_arch = "x86", target_arch = "x86_64")))']
+rustflags = ["-Clink-args=/DYNAMICBASE /CETCOMPAT"]

@@ -1,0 +1,24 @@
+// Resource file (.rc) template for sudo.
+//
+// Our string resources are all auto-generated from our resw file. They'll be
+// consumed from a generated .rc file, which will start with the content of this file.
+
+#include <windows.h>
+
+// Here, you'd usually want to
+//
+// #include "resource.h"
+//
+// To include your resource ID's. That doesn't work for us!
+// We want to use the winres crate to auto-generate FILEVERSION et. al. If we
+// want that to work, then we need to append the content of our generated file
+// to the content winres generates (using append_rc_content).
+// However, when we do it that way, the ultimate .rc file we end up using is one
+// that's generated in our OUT_DIR, and that means it can't find the relative
+// resource.h
+//
+// Instead, we'll use append_rc_content to _also_ include the header literally
+// in the output .rc file.
+
+// Make sure to declare our exe icon here
+IDI_APPICON             ICON                    "..\\img\\ico\\sudo.ico"

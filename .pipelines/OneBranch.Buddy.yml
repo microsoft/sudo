@@ -1,0 +1,68 @@
+#################################################################################
+#                        OneBranch Pipelines - Buddy                            #
+# This pipeline was created by EasyStart from a sample located at:              #
+#   https://aka.ms/obpipelines/easystart/samples                                #
+# Documentation:  https://aka.ms/obpipelines                                    #
+# Yaml Schema:    https://aka.ms/obpipelines/yaml/schema                        #
+# Retail Tasks:   https://aka.ms/obpipelines/tasks                              #
+# Support:        https://aka.ms/onebranchsup                                   #
+#################################################################################
+
+trigger:
+- master
+
+# Hourly builds: you may want to change these to nightly ("0 3 * * *" - run at 3am).
+schedules:
+- cron: 0 * * * *
+  displayName: Hourly build
+  branches:
+    include:
+    - master
+  always: true
+
+variables:
+  CDP_DEFINITION_BUILD_COUNT: $[counter('', 0)] # needed for onebranch.pipeline.version task https://aka.ms/obpipelines/versioning
+  LinuxContainerImage: 'mcr.microsoft.com/onebranch/cbl-mariner/build:2.0' # Docker image which is used to build the project https://aka.ms/obpipelines/containers
+  WindowsContainerImage: 'onebranch.azurecr.io/windows/ltsc2019/vse2022:latest'
+  DEBIAN_FRONTEND: noninteractive
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: OneBranch.Pipelines/GovernedTemplates
+      ref: refs/heads/main
+
+extends:
+  template: v2/OneBranch.NonOfficial.CrossPlat.yml@templates # https://aka.ms/obpipelines/templates
+  parameters:
+    cloudvault: # https://aka.ms/obpipelines/cloudvault
+      enabled: false
+    globalSdl: # https://aka.ms/obpipelines/sdl
+      binskim:
+        # Rust build scripts will not be built with spectre-mitigations enabled, so only scan the actual output binaries.
+        scanOutputDirectoryOnly: true
+    stages:
+    - stage: Build
+      jobs:
+      - job: Linux
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: '$(Build.SourcesDirectory)/out' # More settings at https://aka.ms/obpipelines/yaml/jobs
+          additionalRustTargets: x86_64-unknown-linux-musl
+          # Cargo's default target dir is $(Build.SourcesDirectory)/target but $(Build.BinariesDirectory)/target is more appropriate.
+          cargo_target_dir: $(Build.BinariesDirectory)/target
+        steps:
+        - template: .pipelines/OneBranch.Common.yml@self
+
+      - job: Windows
+        pool:
+          type: windows
+        variables:
+          ob_outputDirectory: '$(Build.SourcesDirectory)/out' # More settings at https://aka.ms/obpipelines/yaml/jobs
+          additionalRustTargets: i686-pc-windows-msvc
+          # For details on this cargo_target_dir setting, see https://eng.ms/docs/more/rust/topics/onebranch-workaround
+          cargo_target_dir: C:\cargo_target_dir
+        steps:
+        - template: .pipelines/OneBranch.Common.yml@self

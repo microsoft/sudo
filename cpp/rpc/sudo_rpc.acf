@@ -1,0 +1,5 @@
+[implicit_handle(handle_t sudo_rpc_IfHandle)]
+interface sudo_rpc
+{
+
+}

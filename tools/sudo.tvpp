@@ -1,0 +1,26 @@
+<TVPP_Application_Settings>
+    <Configurations>
+        <Mode>LocalLive</Mode>
+        <SessionName>sudo for windows</SessionName>
+        <Items>
+            <Item>tl:{6ffdd42d-46d9-5efe-68a1-3b18cb73a607}</Item>
+        </Items>
+        <ProviderConfigs>
+            <ProviderConfig>
+                <Guid>6ffdd42d-46d9-5efe-68a1-3b18cb73a607</Guid>
+                <Level>0</Level>
+                <Flag>0</Flag>
+            </ProviderConfig>
+        </ProviderConfigs>
+        <ManifestPath />
+    </Configurations>
+    <ViewControlConfiguration>
+        <Columns>
+            <Column Name="Provider Name" Width="380.7" />
+            <Column Name="Task Name" Width="400.73" />
+            <Column Name="Message/PartC" Width="959.113333333333" />
+            <Column Name="Process ID" Width="NaN" />
+            <Column Name="Time" Width="NaN" />
+        </Columns>
+    </ViewControlConfiguration>
+</TVPP_Application_Settings>
