@@ -93,17 +93,17 @@ fn build_rpc() {
     let cl_path =
         cc::windows_registry::find_tool(target.as_str(), "cl.exe").expect("Failed to find cl.exe");
     // add cl.exe to our path
-    let mut path = std::env::var("PATH").unwrap();
+    let mut path = env::var("PATH").unwrap();
     path.push(';');
     path.push_str(cl_path.path().parent().unwrap().to_str().unwrap());
-    std::env::set_var("PATH", path);
+    env::set_var("PATH", path);
 
     // Great! we've now finally got a path to midl.exe, and cl.exe is on the PATH
 
     // Now we can actually run midl.exe, to compile the IDL file. This will
     // generate a bunch of files in the OUT_DIR which we need to do RPC.
 
-    let mut cmd = std::process::Command::new(midl_path);
+    let mut cmd = Command::new(midl_path);
     cmd.arg("../cpp/rpc/sudo_rpc.idl");
     cmd.arg("/h").arg("sudo_rpc.h");
     cmd.arg("/target").arg("NT100"); // LOAD BEARING: Enables system_handle
@@ -166,7 +166,7 @@ fn build_logging() {
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let mut cmd = std::process::Command::new(mc_path);
+    let mut cmd = Command::new(mc_path);
     cmd.arg("-h").arg(&out_dir);
     cmd.arg("-r").arg(&out_dir);
     cmd.arg("../cpp/logging/instrumentation.man");
@@ -233,14 +233,14 @@ fn main() -> io::Result<()> {
         .expect("Failed to generate resources");
 
     // witchcraft to get windows.h from the SDK to be able to be found, for the resource compiler
-    let target = std::env::var("TARGET").unwrap();
+    let target = env::var("TARGET").unwrap();
     if let Some(tool) = cc::windows_registry::find_tool(target.as_str(), "cl.exe") {
         for (key, value) in tool.env() {
-            std::env::set_var(key, value);
+            env::set_var(key, value);
         }
     }
 
-    if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {
+    if env::var_os("CARGO_CFG_WINDOWS").is_some() {
         // TODO:MSFT
         // Re-add the following:
         //     <windowsSettings>
