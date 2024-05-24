@@ -8,8 +8,7 @@ The "Inbox" version of sudo is available for Windows 11 builds 26045 and later. 
 build with sudo, you can enable it in the Windows Settings app, on the
 "Developer Features" page.
 
-Here you can report issues and file feature requests. We're in the process of
-open-sourcing the code, so stay tuned for more updates.
+Here you can report issues and file feature requests.
 
 ## Relationship to `sudo` on Unix/Linux
 
