@@ -219,7 +219,7 @@ fn main() -> io::Result<()> {
     // powershell -c .pipelines\convert-resx-to-rc.ps1 .\ no_existy.h res.h no_existy.rc out.rc resource_ids.rs
     // to generate the resources
 
-    Command::new("powershell")
+    let generate_resources_result = Command::new("powershell")
         .arg("-NoProfile")
         .arg("-c")
         .arg("..\\.pipelines\\convert-resx-to-rc.ps1")
@@ -231,6 +231,18 @@ fn main() -> io::Result<()> {
         .arg("resource_ids.rs") // Target file name of the rust resource file, which will be used in code - Example: resource.rs
         .status()
         .expect("Failed to generate resources");
+
+    if !generate_resources_result.success() {
+        println!(
+            "\nFailed to generate resources by executing powershell script: {}.",
+            generate_resources_result
+        );
+        println!(
+            "Maybe you haven't granted the access to execute the powershell script on this system."
+        );
+        println!("For more details, please execute the `cargo build` command with the `-vv` flag.");
+        std::process::exit(1);
+    }
 
     // witchcraft to get windows.h from the SDK to be able to be found, for the resource compiler
     let target = env::var("TARGET").unwrap();
