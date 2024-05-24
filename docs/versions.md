@@ -18,5 +18,5 @@ releases in different cadences.
 Dev builds are the default for local compilation, to make the development inner loop the
 easiest.
 
-For more info, see "[Contributing code](./Contributing.md#contributing-code)" in
+For more info, see "[Contributing code](../Contributing.md#contributing-code)" in
 the contributors guide.
