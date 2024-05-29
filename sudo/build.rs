@@ -222,6 +222,11 @@ fn main() -> io::Result<()> {
     Command::new("powershell")
         .arg("-NoProfile")
         .arg("-c")
+        .arg("Set-ExecutionPolicy")
+        .arg("Bypass")
+        .arg("-Scope")
+        .arg("Process")
+        .arg("-Force;")
         .arg("..\\.pipelines\\convert-resx-to-rc.ps1")
         .arg("..\\") // Root directory which contains the resx files
         .arg("no_existy.h") // File name of the base resource.h which contains all the non-localized resource definitions
