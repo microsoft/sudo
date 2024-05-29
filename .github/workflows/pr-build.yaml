@@ -46,7 +46,7 @@ jobs:
 
       # Test will build the code, then also test it.
       - name: Test
-        run:  cargo test --no-default-features --features ${{matrix.branding}}  --target ${{ matrix.target }}
+        run:  cargo test --config .cargo/config.toml --no-default-features --features ${{matrix.branding}}  --target ${{ matrix.target }}
 
       - name: Run clippy
-        run: cargo clippy  --no-default-features --features ${{matrix.branding}} --target ${{matrix.target}} 2>&1
+        run: cargo clippy --config .cargo/config.toml --no-default-features --features ${{matrix.branding}} --target ${{matrix.target}} 2>&1
