@@ -13,7 +13,7 @@ env:
 
 jobs:
   check:
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     strategy:
       matrix:
@@ -37,16 +37,16 @@ jobs:
 
       - name: Fix environment
         uses: ./.github/actions/fix-environment
-      
+
       - name: Clean
         run:  cargo clean
 
       - name: Run fmt
-        run: cargo fmt --all -- --check 
+        run: cargo fmt --all -- --check
 
       # Test will build the code, then also test it.
       - name: Test
-        run:  cargo test --no-default-features --features ${{matrix.branding}}  --target ${{ matrix.target }} 
+        run:  cargo test --no-default-features --features ${{matrix.branding}}  --target ${{ matrix.target }}
 
       - name: Run clippy
-        run: cargo clippy  --no-default-features --features ${{matrix.branding}} --target ${{matrix.target}} --frozen --release 2>&1
+        run: cargo clippy  --no-default-features --features ${{matrix.branding}} --target ${{matrix.target}} 2>&1
