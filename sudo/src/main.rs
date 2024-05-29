@@ -18,7 +18,7 @@ use std::env;
 use tracing::*;
 use windows::{core::*, Win32::Foundation::*, Win32::System::Console::*};
 
-// Clap does provide a nice macro for args, which defines args with a snytax
+// Clap does provide a nice macro for args, which defines args with a syntax
 // close to what the actual help text would be. Unfortunately, we're not using
 // that macro, because it doesn't play well with localization. The comments
 // throughout here help show how the macro would have worked.
