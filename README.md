@@ -12,7 +12,7 @@ Here you can report issues and file feature requests.
 
 ## Relationship to `sudo` on Unix/Linux
 
-Obviously, everything about permissions and the command line experience is
+Everything about permissions and the command line experience is
 different between Windows and Linux. This project is not a fork of the Unix/Linux
 `sudo` project, nor is it a port of that `sudo` project. Instead, Sudo for
 Windows is a Windows-specific implementation of the `sudo` concept.
