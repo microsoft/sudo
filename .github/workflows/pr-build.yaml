@@ -14,10 +14,9 @@ jobs:
 
     strategy:
       matrix:
-          # Apparently ARM targets aren't usable in GH actionsd
+          # Apparently ARM targets aren't usable in GH actions
           # target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc, aarch64-pc-windows-msvc]
           target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
-          # target: [x86_64-pc-windows-msvc]
           branding: [Inbox, Stable, Dev]
 
     steps:
