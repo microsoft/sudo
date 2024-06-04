@@ -31,7 +31,7 @@ embed-manifest = "1.4"
 which = "6.0"
 win_etw_provider = "0.1.8"
 win_etw_macros = "0.1.8"
-windows = "0.54"
+windows = "0.56"
 windows-registry = "0.1"
 winres = "0.1"
 
