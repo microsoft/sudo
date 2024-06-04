@@ -19,7 +19,7 @@ which = { workspace = true }
 
 [dependencies]
 
-clap = { workspace = true, default_features = false, features = ["color", "help", "usage", "error-context"] }
+clap = { workspace = true, default-features = false, features = ["color", "help", "usage", "error-context"] }
 which = { workspace = true }
 windows-registry = { workspace = true }
 

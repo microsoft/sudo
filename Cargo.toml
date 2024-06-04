@@ -26,7 +26,7 @@ cc = "1.0"
 # To use clap at all, you do need the std feature enabled, so enable that.
 #
 # See: https://docs.rs/clap/latest/clap/_features/index.html
-clap = { version = "4.4.7", default_features = false, features = ["std"] }
+clap = { version = "4.4.7", default-features = false, features = ["std"] }
 embed-manifest = "1.4"
 which = "6.0"
 win_etw_provider = "0.1.8"
