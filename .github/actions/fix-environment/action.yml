@@ -1,0 +1,44 @@
+name: Fix environment
+description: GitHub VMs aren't configured correctly
+# Shamelessly borrowed from https://github.com/microsoft/windows-rs/blob/master/.github/actions/fix-environment/action.yml
+runs:
+  using: "composite"
+  steps:
+    - name: Configure environment
+      shell: pwsh
+      run: |
+        $vs_root = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+          -latest -property installationPath -format value
+
+        switch -Wildcard ("${{ matrix.target }}")
+        {
+          "*-pc-windows-gnu"
+          {
+            "C:\msys64\mingw64\bin;C:\msys64\mingw32\bin" >> $env:GITHUB_PATH
+          }
+          "i686*"
+          {
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22000.0\x86" >> $env:GITHUB_PATH
+            ((Resolve-Path "$vs_root\VC\Tools\MSVC\*\bin\Hostx86\x86")
+              | Sort-Object -Descending | Select -First 1).ToString() >> $env:GITHUB_PATH
+          }
+          "x86_64*"
+          {
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22000.0\x64" >> $env:GITHUB_PATH
+            ((Resolve-Path "$vs_root\VC\Tools\MSVC\*\bin\Hostx64\x64")
+              | Sort-Object -Descending | Select -First 1).ToString() >> $env:GITHUB_PATH
+          }
+          "aarch64*"
+          {
+            "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.22000.0\x64" >> $env:GITHUB_PATH
+            ((Resolve-Path "$vs_root\VC\Tools\MSVC\*\bin\Hostx64\x64")
+              | Sort-Object -Descending | Select -First 1).ToString() >> $env:GITHUB_PATH
+          }
+          "*"
+          {
+            (Join-Path $env:GITHUB_WORKSPACE "target\debug\deps").ToString() >> $env:GITHUB_PATH
+            (Join-Path $env:GITHUB_WORKSPACE "target\test\debug\deps").ToString() >> $env:GITHUB_PATH
+            "INCLUDE=${env:ProgramFiles(x86)}\Windows Kits\10\include\10.0.22000.0\winrt;${env:ProgramFiles(x86)}\Windows Kits\10\include\10.0.22000.0\cppwinrt" `
+              >> $env:GITHUB_ENV
+          }
+        }

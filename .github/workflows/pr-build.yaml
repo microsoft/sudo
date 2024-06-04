@@ -1,0 +1,52 @@
+name: PR Build & Test
+
+on:
+  pull_request:
+  push:
+    paths-ignore:
+      - '.github/ISSUE_TEMPLATE/**'
+    branches:
+      - main
+
+jobs:
+  check:
+    runs-on: windows-2022
+
+    strategy:
+      matrix:
+          # Apparently ARM targets aren't usable in GH actions
+          # target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc, aarch64-pc-windows-msvc]
+          target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
+          branding: [Inbox, Stable, Dev]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update toolchain
+        run: rustup update --no-self-update stable && rustup default stable-${{ matrix.target }}
+
+      - name: Add toolchain target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install fmt
+        run: rustup component add rustfmt
+
+      - name: Install clippy
+        run: rustup component add clippy
+
+      - name: Fix environment
+        uses: ./.github/actions/fix-environment
+
+      - name: Clean
+        run:  cargo clean
+
+      - name: Run fmt
+        run: cargo fmt --all -- --check
+
+      # Test will build the code, then also test it.
+      - name: Test
+        run:  cargo test --no-default-features --features ${{matrix.branding}}  --target ${{ matrix.target }}
+
+      - name: Run clippy
+        run: cargo clippy --no-default-features --features ${{matrix.branding}} --target ${{matrix.target}} 2>&1

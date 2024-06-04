@@ -1,6 +1,7 @@
 # -Ccontrol-flow-guard: Enable Control Flow Guard, needed for OneBranch's post-build analysis (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard).
 [target.'cfg(target_os = "windows")']
 rustflags = [
+    "-Dwarnings",
     "-Ccontrol-flow-guard",
     "-Ctarget-feature=+crt-static",
     "-Clink-args=/DEFAULTLIB:ucrt.lib /NODEFAULTLIB:vcruntime.lib /NODEFAULTLIB:msvcrt.lib /NODEFAULTLIB:libucrt.lib"
