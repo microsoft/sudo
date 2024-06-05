@@ -49,7 +49,7 @@ pub fn rpc_client_setup(endpoint: &CStr) -> RPC_STATUS {
             std::ptr::addr_of_mut!(client_sudo_rpc_ClientIfHandle),
         );
         // Don't forget to free the previously allocated string before potentially returning. :)
-        RpcStringFreeA(&mut string_binding);
+        _ = RpcStringFreeA(&mut string_binding);
         if status != RPC_S_OK {
             return status;
         }
