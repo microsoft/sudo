@@ -62,38 +62,6 @@ impl From<SudoMode> for i32 {
     }
 }
 
-#[repr(transparent)]
-#[derive(Default)]
-pub struct OwnedHandle(pub HANDLE);
-
-impl OwnedHandle {
-    pub fn new(handle: HANDLE) -> Self {
-        OwnedHandle(handle)
-    }
-}
-
-impl Drop for OwnedHandle {
-    fn drop(&mut self) {
-        if !self.0.is_invalid() {
-            unsafe { _ = CloseHandle(self.0) }
-        }
-    }
-}
-
-impl Deref for OwnedHandle {
-    type Target = HANDLE;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for OwnedHandle {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
 // There can be many different types that need to be LocalFree'd. PWSTR, PCWSTR, PSTR, PCSTR, PSECURITY_DESCRIPTOR
 // are all distinct types, but they are compatible with the windows::core::IntoParam<HLOCAL> trait.
 // There's also *mut ACL though which is also LocalAlloc'd and that's the problem (probably not the last of its kind).
@@ -159,15 +127,15 @@ pub fn is_running_elevated() -> Result<bool> {
     Ok(elevation.TokenIsElevated == 1)
 }
 
-fn current_process_token() -> Result<OwnedHandle> {
-    let mut token: OwnedHandle = Default::default();
+fn current_process_token() -> Result<Owned<HANDLE>> {
+    let mut token = Owned::default();
     unsafe {
         OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut *token)?;
     }
     Ok(token)
 }
-fn get_process_token(process: HANDLE) -> Result<OwnedHandle> {
-    let mut token: OwnedHandle = Default::default();
+fn get_process_token(process: HANDLE) -> Result<Owned<HANDLE>> {
+    let mut token = Owned::default();
     unsafe {
         OpenProcessToken(process, TOKEN_QUERY, &mut *token)?;
     }
@@ -305,7 +273,11 @@ pub fn env_as_string() -> String {
 
         // Try to figure out the end of the double-null terminated env block.
         loop {
-            let len = wcslen(PCWSTR(end));
+            extern "C" {
+                fn wcslen(s: *const u16) -> usize;
+            }
+
+            let len = wcslen(end);
             if len == 0 {
                 break;
             }
