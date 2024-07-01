@@ -75,7 +75,7 @@ pub fn spawn_target_for_request(request: &ElevateRequest) -> Result<std::process
 /// * Conditionally attach to the parent process's console (if requested)
 /// * Spawn the target process (with redirected input/output if requested, and with the environment variables passed in if needed)
 /// Called by rust_handle_elevation_request
-pub fn handle_elevation_request(request: &ElevateRequest) -> Result<OwnedHandle> {
+pub fn handle_elevation_request(request: &ElevateRequest) -> Result<Owned<HANDLE>> {
     // Log the request we received to the event log. This should create a pair
     // of events, one for the request, and one for the response, each with the
     // same RequestID.
@@ -135,7 +135,7 @@ pub fn handle_elevation_request(request: &ElevateRequest) -> Result<OwnedHandle>
     // in the COM API to have it limit the handle permissions but that didn't work at all.
     // So now we do it manually here.
     unsafe {
-        let mut child_handle = OwnedHandle::default();
+        let mut child_handle = Owned::default();
         let current_process = GetCurrentProcess();
         DuplicateHandle(
             current_process,

@@ -93,9 +93,9 @@ fn adjust_args_for_intrinsics_and_cmdlets(req: &mut ElevateRequest) -> Result<bo
     };
     tracing::trace_log_message(&format!("parent_pid: {parent_pid:?}"));
     // Now, open that process so we can query some more information about it.
-    // (stick it in an OwnedHandle so it gets closed when we're done with it)
+    // (stick it in an `Owned<T>` so it gets closed when we're done with it)
     let parent_process_handle = unsafe {
-        OwnedHandle::new(OpenProcess(
+        Owned::new(OpenProcess(
             PROCESS_QUERY_LIMITED_INFORMATION,
             false,
             parent_pid.try_into().unwrap(),
@@ -417,7 +417,7 @@ fn send_request_via_rpc(req: &ElevateRequest) -> Result<i32> {
     // The GetCurrentProcess() is not a "real" handle and unsuitable to be used with COM.
     // -> We need to clone it first.
     let h_real = unsafe {
-        let mut process = OwnedHandle::default();
+        let mut process = Owned::default();
         let current_process = GetCurrentProcess();
         DuplicateHandle(
             current_process,
@@ -433,7 +433,7 @@ fn send_request_via_rpc(req: &ElevateRequest) -> Result<i32> {
 
     tracing::trace_log_message(&format!("sending i/o/e handles: {:?}", req.handles));
 
-    let mut child_handle = OwnedHandle::default();
+    let mut child_handle = Owned::default();
     let rpc_elevate = rpc_client_do_elevation_request(
         *h_real,
         &req.handles,

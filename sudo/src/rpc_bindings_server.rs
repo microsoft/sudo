@@ -33,7 +33,7 @@ unsafe extern "system" fn rpc_server_callback(
     _interface_uuid: *const c_void,
     context: *const c_void,
 ) -> RPC_STATUS {
-    let mut client_handle = OwnedHandle::default();
+    let mut client_handle = Owned::default();
     let status = I_RpcOpenClientProcess(
         Some(context),
         PROCESS_QUERY_LIMITED_INFORMATION.0,
@@ -80,7 +80,7 @@ fn create_security_descriptor_for_process(pid: u32) -> Result<OwnedSecurityDescr
         {
             let user = {
                 let process =
-                    OwnedHandle::new(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?);
+                    Owned::new(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)?);
                 get_sid_for_process(*process)?
             };
 
@@ -227,7 +227,7 @@ pub extern "C" fn server_DoElevationRequest(
 
     match result {
         Ok(mut handle) => {
-            unsafe { child.write(take(&mut handle.0)) };
+            unsafe { child.write(take(&mut handle)) };
             HRESULT::default()
         }
         Err(err) => err.into(),
