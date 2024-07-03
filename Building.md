@@ -73,3 +73,16 @@ cargo build --config .cargo\ms-toolchain-config.toml
 ```
 
 Note, if you run that on the public toolchain, you'll most definitely run into ``error: unknown codegen option: `ehcont_guard` `` when building.
+
+### Notes on updating the cargo feed
+
+For internal reasons, we need to maintain a separate Azure Artifacts cargo feed. Largely we just pull dependencies through from crates.io into that feed. Hence the config to replace the default cargo feed with our own.
+
+As a maintainer, if you need to update that feed, then you'll need to do the following:
+
+```cmd
+az login
+az account get-access-token --query "join(' ', ['Bearer', accessToken])" --output tsv | cargo login --registry Sudo_PublicPackages
+```
+
+That'll log you in via the Azure CLI and then log you into the cargo feed. That'll let you pull down the packages but oh yikes everything is awful.

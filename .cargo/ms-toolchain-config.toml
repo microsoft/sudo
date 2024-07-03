@@ -20,6 +20,6 @@ rustflags = ["-Clink-args=/DYNAMICBASE /CETCOMPAT"]
 # Setup the ADO Artifacts feed as a Registry: you'll need to use your own feed in your project that upstreams from crates.io.
 # For more details see https://eng.ms/docs/cloud-ai-platform/devdiv/one-engineering-system-1es/1es-docs/azure-artifacts/cargo
 [registries]
-sudo_public_cargo = { index = "sparse+https://pkgs.dev.azure.com/microsoft/Dart/_packaging/sudo_public_cargo/Cargo/index/" }
+Sudo_PublicPackages = { index = "sparse+https://pkgs.dev.azure.com/shine-oss/sudo/_packaging/Sudo_PublicPackages/Cargo/index/" }
 [source.crates-io]
-replace-with = "sudo_public_cargo"
+replace-with = "Sudo_PublicPackages"
