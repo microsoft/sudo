@@ -109,8 +109,8 @@ pub unsafe extern "system" fn ignore_ctrl_c(ctrl_type: u32) -> BOOL {
     }
 }
 
-pub fn generate_rpc_endpoint_name(pid: u32) -> String {
-    format!(r"sudo_elevate_{pid}")
+pub fn generate_rpc_endpoint_name(pid: u32, nonce: u32) -> String {
+    format!(r"sudo_elevate_{pid}_{nonce}")
 }
 
 pub fn is_running_elevated() -> Result<bool> {

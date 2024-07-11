@@ -343,9 +343,32 @@ fn do_request(req: ElevateRequest, copy_env: bool, manually_requested_dir: bool)
     }
 }
 
+/// Generates a random nonce to include in the RPC endpoint name. We're using
+/// `RtlGenRandom` to generate the number. This is how the core language does it:
+/// https://github.com/rust-lang/rust/pull/45370
+fn random_nonce() -> u32 {
+    #[link(name = "advapi32")]
+    extern "system" {
+        // This function's real name is `RtlGenRandom`.
+        fn SystemFunction036(RandomBuffer: *mut u8, RandomBufferLength: u32) -> BOOLEAN;
+    }
+
+    let mut nonce = 0u32;
+    unsafe {
+        SystemFunction036(
+            (&mut nonce as *mut u32) as *mut u8,
+            std::mem::size_of::<u32>() as _,
+        );
+    }
+    nonce
+}
+
 fn handoff_to_elevated(req: &ElevateRequest) -> Result<i32> {
     // Build a single string from the request's application and args
     let parent_pid = std::process::id();
+
+    // generate a pseudorandom nonce to include
+    let nonce = random_nonce();
 
     tracing::trace_log_message(&format!(
         "running as user: '{}'",
@@ -354,7 +377,7 @@ fn handoff_to_elevated(req: &ElevateRequest) -> Result<i32> {
 
     let path = env::current_exe().unwrap();
     let target_args = format!(
-        "elevate -p {parent_pid} {} {}",
+        "elevate -p {parent_pid} -n {nonce} {} {}",
         req.application,
         join_args(&req.args)
     );
@@ -369,7 +392,7 @@ fn handoff_to_elevated(req: &ElevateRequest) -> Result<i32> {
         _ = SetConsoleCtrlHandler(Some(ignore_ctrl_c), true);
     }
 
-    send_request_via_rpc(req)
+    send_request_via_rpc(req, nonce)
 }
 
 /// Connects to the elevated sudo instance via RPC, then makes a couple RPC
@@ -386,8 +409,8 @@ fn handoff_to_elevated(req: &ElevateRequest) -> Result<i32> {
 ///   process exited with an error.
 ///   - Specifically be on the lookout for 1764 here, which is
 ///     RPC_S_CANNOT_SUPPORT
-fn send_request_via_rpc(req: &ElevateRequest) -> Result<i32> {
-    let endpoint = generate_rpc_endpoint_name(unsafe { GetCurrentProcessId() });
+fn send_request_via_rpc(req: &ElevateRequest, nonce: u32) -> Result<i32> {
+    let endpoint = generate_rpc_endpoint_name(unsafe { GetCurrentProcessId() }, nonce);
     let endpoint = CString::new(endpoint).unwrap();
 
     // Attempt to connect to our RPC server, with a backoff. This will try 10

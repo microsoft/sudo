@@ -217,7 +217,7 @@ checksum = "ae1a47186c03a32177042e55dbc5fd5aee900b8e0069a8d70fba96a9375cd012"
 
 [[package]]
 name = "sudo"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "cc",
  "clap",

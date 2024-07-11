@@ -74,6 +74,8 @@ fn sudo_cli(allowed_mode: i32) -> Command {
                         .help(r::IDS_ELEVATE_PARENT.get())
                         .required(true),
                 )
+                // .arg(arg!(-n <NONCE>).required(true))
+                .arg(Arg::new("NONCE").short('n').required(true))
                 // .arg(arg!([COMMANDLINE] ... "")),
                 .arg(
                     Arg::new("COMMANDLINE")
@@ -379,6 +381,7 @@ fn do_elevate(matches: &ArgMatches) -> Result<i32> {
     _ = check_enabled_or_bail();
 
     let parent_pid = matches.get_one::<String>("PARENT").unwrap().parse::<u32>();
+    let nonce = matches.get_one::<String>("NONCE").unwrap().parse::<u32>();
 
     if let Err(e) = &parent_pid {
         eprintln!("{} {}", r::IDS_UNKNOWNERROR.get(), e);
@@ -394,7 +397,12 @@ fn do_elevate(matches: &ArgMatches) -> Result<i32> {
         .flatten()
         .collect::<Vec<_>>();
 
-    let result = start_rpc_server(parent_pid.ok().unwrap(), None, &commandline);
+    let result = start_rpc_server(
+        parent_pid.ok().unwrap(),
+        nonce.ok().unwrap(),
+        None,
+        &commandline,
+    );
     trace_log_message(&format!("elevate result: {result:?}"));
     result
 }
