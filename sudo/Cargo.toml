@@ -15,12 +15,16 @@ name = "sudo"
 winres.workspace = true
 cc.workspace = true
 embed-manifest.workspace = true
-which = { workspace = true }
+
+[build-dependencies.windows]
+workspace = true
+features = [
+    "Win32_Storage_FileSystem",
+]
 
 [dependencies]
 
 clap = { workspace = true, default-features = false, features = ["color", "help", "usage", "error-context"] }
-which = { workspace = true }
 windows-registry = { workspace = true }
 
 sudo_events = { path = "../sudo_events" }

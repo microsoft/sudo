@@ -191,6 +191,21 @@ pub fn run_target(
     do_request(req, copy_env, manually_requested_dir)
 }
 
+fn search_path(filename: &str) -> Result<String> {
+    let filename = &HSTRING::from(filename);
+    let len = unsafe { SearchPathW(None, filename, None, None, None) };
+
+    if len == 0 {
+        return Err(Error::from_win32());
+    }
+
+    let mut buffer = vec![0; len as usize];
+    let len = unsafe { SearchPathW(None, filename, None, Some(&mut buffer), None) };
+    buffer.truncate(len as usize);
+
+    Ok(String::from_utf16(&buffer)?)
+}
+
 /// Constructs an ElevateRequest from the given arguments. We'll package up
 /// handles, we'll separate out the application and args, and we'll do some
 /// other work to make sure the request is ready to go.
@@ -262,7 +277,7 @@ fn prepare_request(
     event_log_request(true, &req);
 
     // Does the application exist somewhere on the path?
-    let where_result = which::which(&req.application);
+    let where_result = search_path(&req.application);
 
     if let Ok(path) = where_result {
         // It's a real file that exists on the PATH.
@@ -271,7 +286,9 @@ fn prepare_request(
         // ensures that the elevated sudo will execute the same thing that was
         // found here in the unelevated context.
 
-        req.application = absolute_path(&path)?.to_string_lossy().to_string();
+        req.application = absolute_path(Path::new(&path))?
+            .to_string_lossy()
+            .to_string();
         adjust_args_for_gui_exes(&mut req);
     } else {
         tracing::trace_command_not_found(&req.application);
