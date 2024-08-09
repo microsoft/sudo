@@ -191,19 +191,58 @@ pub fn run_target(
     do_request(req, copy_env, manually_requested_dir)
 }
 
-fn search_path(filename: &str) -> Result<String> {
-    let filename = &HSTRING::from(filename);
-    let len = unsafe { SearchPathW(None, filename, None, None, None) };
+/// Returns all the extensions from PATHEXT that are used for "executables"
+fn get_path_extensions() -> Vec<String> {
+    env::var("PATHEXT")
+        .unwrap_or_else(|_| {
+            // If PATHEXT isn't set, use the default
+            ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC".to_string()
+        })
+        .split(';')
+        .map(|ext| ext.to_string())
+        .collect()
+}
 
-    if len == 0 {
-        return Err(Error::from_win32());
+/// Searches the PATH for the given filename, with the extensions from PATHEXT.
+/// Returns the full path to the file if it's found, or an error if it's not.
+fn search_path_with_extensions(filename: &str) -> Result<String> {
+    let filename = HSTRING::from(filename);
+    let mut buffer = vec![0; 260];
+    let extensions = get_path_extensions();
+    for extension in extensions {
+        let extension_hstring = HSTRING::from(extension);
+        // SearchPathW will ignore the extension if the filename already has one.
+        let len: u32 = unsafe {
+            SearchPathW(
+                None,
+                &filename,
+                &extension_hstring,
+                Some(&mut buffer),
+                None,
+            )
+        };
+
+        // If the function fails, the return value is zero.
+        if len == 0 {
+            continue;
+        }
+
+        // If the function succeeds, the value returned is the
+        // length of the string that is copied to the buffer,
+        // not including the terminating null character.
+        if len < buffer.len() as u32 {
+            buffer.truncate(len as usize);
+            return Ok(String::from_utf16(&buffer)?);
+        }
+
+        // If the return value is greater than nBufferLength, the value
+        // returned is the size of the buffer that is required to hold
+        // the path, including the terminating null character.
+        //
+        // Includes some padding just in case and because it's cheap.
+        buffer.resize((len + 64) as usize, 0);
     }
-
-    let mut buffer = vec![0; len as usize];
-    let len = unsafe { SearchPathW(None, filename, None, Some(&mut buffer), None) };
-    buffer.truncate(len as usize);
-
-    Ok(String::from_utf16(&buffer)?)
+    Err(Error::from_win32())
 }
 
 /// Constructs an ElevateRequest from the given arguments. We'll package up
@@ -277,7 +316,7 @@ fn prepare_request(
     event_log_request(true, &req);
 
     // Does the application exist somewhere on the path?
-    let where_result = search_path(&req.application);
+    let where_result = search_path_with_extensions(&req.application);
 
     if let Ok(path) = where_result {
         // It's a real file that exists on the PATH.
@@ -537,6 +576,20 @@ fn runas_admin_impl(exe: &OsStr, args: &OsStr, show: SHOW_WINDOW_CMD) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_search_path_cmd() {
+        let path = search_path_with_extensions("cmd").unwrap();
+        assert!(path.eq_ignore_ascii_case("C:\\Windows\\System32\\cmd.exe"));
+        let path = search_path_with_extensions("cmd.exe").unwrap();
+        assert!(path.eq_ignore_ascii_case("C:\\Windows\\System32\\cmd.exe"));
+    }
+    #[test]
+    fn test_search_path_bad() {
+        // There's no way this file exists
+        let path = search_path_with_extensions("acaeb0cf7e91430eb8958a64bee752a7").unwrap_err();
+        assert_eq!(path.code().0, E_FILENOTFOUND.0);
+    }
 
     #[test]
     fn test_cmd_is_cui() {

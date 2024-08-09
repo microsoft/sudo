@@ -76,13 +76,18 @@ Note, if you run that on the public toolchain, you'll most definitely run into `
 
 ### Notes on updating the cargo feed
 
-For internal reasons, we need to maintain a separate Azure Artifacts cargo feed. Largely we just pull dependencies through from crates.io into that feed. Hence the config to replace the default cargo feed with our own.
+For internal reasons, we need to maintain a separate Azure Artifacts cargo feed.
+Largely we just pull dependencies through from crates.io into that feed. Hence
+the config to replace the default cargo feed with our own.
 
-As a maintainer, if you need to update that feed, then you'll need to do the following:
+As a maintainer, if you need to update that feed, You should check out the steps
+under ["Cargo" on this
+page](https://dev.azure.com/shine-oss/sudo/_artifacts/feed/Sudo_PublicPackages).
+TL;DR, do the following:
 
 ```cmd
 az login
 az account get-access-token --query "join(' ', ['Bearer', accessToken])" --output tsv | cargo login --registry Sudo_PublicPackages
 ```
 
-That'll log you in via the Azure CLI and then log you into the cargo feed. That'll let you pull down the packages but oh yikes everything is awful.
+That'll log you in via the Azure CLI and then log you into the cargo feed. I believe that should allow you to pull packages through to the Azure feed, from the public feed. If it doesn't, maintainers should have the necessary permissions to add packages to the feed.
