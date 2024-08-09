@@ -1,6 +1,7 @@
 use embed_manifest::embed_manifest_file;
 use std::path::PathBuf;
 use std::process::Command;
+use windows::{core::*, Win32::Storage::FileSystem::*};
 use {
     std::{env, io},
     winres::WindowsResource,
@@ -32,6 +33,21 @@ fn get_sdk_path() -> Option<String> {
     sdk_path
 }
 
+fn search_path(filename: &str) -> Result<String> {
+    let filename = &HSTRING::from(filename);
+    let len = unsafe { SearchPathW(None, filename, None, None, None) };
+
+    if len == 0 {
+        return Err(Error::from_win32());
+    }
+
+    let mut buffer = vec![0; len as usize];
+    let len = unsafe { SearchPathW(None, filename, None, Some(&mut buffer), None) };
+    buffer.truncate(len as usize);
+
+    Ok(String::from_utf16(&buffer)?)
+}
+
 fn get_sdk_tool(sdk_path: &Option<String>, tool_name: &str) -> String {
     // seems like, in a VS tools prompt, midl.exe is in the path so the above
     // doesn't include the path. kinda weird but okay?
@@ -47,8 +63,7 @@ fn get_sdk_tool(sdk_path: &Option<String>, tool_name: &str) -> String {
             // we can just get the absolute path to the exe using the windows
             // path search.
 
-            let tool_path = which::which(tool_name).expect("Failed to find tool in path");
-            tool_path.to_str().unwrap().to_owned()
+            search_path(tool_name).expect("Failed to find tool in path")
         }
     };
     tool_path

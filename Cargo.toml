@@ -28,7 +28,6 @@ cc = "1.0"
 # See: https://docs.rs/clap/latest/clap/_features/index.html
 clap = { version = "4.4.7", default-features = false, features = ["std"] }
 embed-manifest = "1.4"
-which = "6.0"
 win_etw_provider = "0.1.8"
 win_etw_macros = "0.1.8"
 windows = "0.57"
