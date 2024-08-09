@@ -212,15 +212,8 @@ fn search_path_with_extensions(filename: &str) -> Result<String> {
     for extension in extensions {
         let extension_hstring = HSTRING::from(extension);
         // SearchPathW will ignore the extension if the filename already has one.
-        let len: u32 = unsafe {
-            SearchPathW(
-                None,
-                &filename,
-                &extension_hstring,
-                Some(&mut buffer),
-                None,
-            )
-        };
+        let len: u32 =
+            unsafe { SearchPathW(None, &filename, &extension_hstring, Some(&mut buffer), None) };
 
         // If the function fails, the return value is zero.
         if len == 0 {
