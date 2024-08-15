@@ -150,7 +150,7 @@ fn adjust_args_for_intrinsics_and_cmdlets(req: &mut ElevateRequest) -> Result<bo
     Ok(false)
 }
 
-fn adjust_args_for_gui_exes(req: &mut ElevateRequest) {
+fn adjust_args_for_files(req: &mut ElevateRequest) {
     // We did find the command. We're now gonna try to find out if the file
     // is:
     // - An command line exe
@@ -169,14 +169,18 @@ fn adjust_args_for_gui_exes(req: &mut ElevateRequest) {
     tracing::trace_log_message(&format!("is_exe: {is_exe}"));
     tracing::trace_log_message(&format!("is_gui: {is_gui}"));
 
-    // TODO: figure out how to handle non-exe files. ShellExecute(runas,
-    // ...) doesn't do anything for them, and I'm not sure we can trivially
-    // have the service find out what the right verb is for an arbitrary
-    // extension. (this is the kind of comment I'm sure to be proven wrong
-    // about)
     if is_gui {
         tracing::trace_log_message("not cli exe. Force new window");
         req.sudo_mode = SudoMode::ForceNewWindow;
+    }
+
+    // We're changing the argument to the application here and using the
+    // registry to figure out the default application for the specified
+    // file.
+    if !is_exe {
+        req.args
+            .splice(0..0, [req.application.clone()]);
+        req.application = get_default_application(&req.application).expect("Failed to get the default application");
     }
 }
 
@@ -272,7 +276,7 @@ fn prepare_request(
         // found here in the unelevated context.
 
         req.application = absolute_path(&path)?.to_string_lossy().to_string();
-        adjust_args_for_gui_exes(&mut req);
+        adjust_args_for_files(&mut req);
     } else {
         tracing::trace_command_not_found(&req.application);
 
