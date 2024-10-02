@@ -161,7 +161,8 @@ fn run_args() -> Vec<clap::Arg> {
             .short('D')
             .long("chdir")
             .help(r::IDS_RUN_CHDIR_HELP.get())
-            .action(ArgAction::Set),
+            .action(ArgAction::Set)
+            .value_name("DIR"),
         // arg!([COMMANDLINE] ... "Command-line to run")
         Arg::new("COMMANDLINE")
             .help(r::IDS_RUN_COMMANDLINE_HELP.get())
