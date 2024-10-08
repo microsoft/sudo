@@ -153,13 +153,14 @@ pub fn handle_elevation_request(request: &ElevateRequest) -> Result<Owned<HANDLE
 /// Starts the RPC server and blocks until Shutdown() is called.
 pub fn start_rpc_server(
     parent_pid: u32,
+    nonce: u32,
     _caller_sid: Option<&String>,
     _args: &[&String],
 ) -> Result<i32> {
     // TODO:48520593 In rust_handle_elevation_request, validate that the parent
     // process handle is the same one that we opened here.
 
-    let endpoint = generate_rpc_endpoint_name(parent_pid);
+    let endpoint = generate_rpc_endpoint_name(parent_pid, nonce);
     let endpoint = CString::new(endpoint).unwrap();
     rpc_server_setup(&endpoint, parent_pid)?;
 

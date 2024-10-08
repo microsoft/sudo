@@ -21,6 +21,9 @@ mod tests {
 
     #[test]
     fn test_generate_rpc_endpoint_name() {
-        assert_eq!(generate_rpc_endpoint_name(1234), r"sudo_elevate_1234");
+        assert_eq!(
+            generate_rpc_endpoint_name(1234, 2345),
+            r"sudo_elevate_1234_2345"
+        );
     }
 }
