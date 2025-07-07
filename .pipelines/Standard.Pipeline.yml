@@ -129,12 +129,17 @@ extends:
           parameters:
             includePseudoLoc: true
 
+        - template: .pipelines/steps-prepare-prefast.yml@self
+
         # The actual build is over in Onebranch.Common.yml
         - template: .pipelines/OneBranch.Common.yml@self
           parameters:
             buildPlatforms: ${{ parameters.buildPlatforms }}
             brandings: ${{ parameters.brandings }}
             tracingGuid: $(SecretTracingGuid)
+            extraCargoArgs: --features compliance # enable the PREfast and Warnings builds
+
+        - template: .pipelines/steps-finalize-sarif-guardian.yml@self
 
         # This is very shamelessly stolen from curl's pipeline. Small
         # modification: since our cargo.toml has a bunch of lines with "version",

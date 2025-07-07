@@ -415,10 +415,10 @@ impl ConfigProvider for RegistryConfigProvider {
 
 /// Get the current mode allowed by policy.
 /// * If the policy isn't set (we fail to read the reg key), we'll return Ok(3)
-/// (to indicate that all modes up to inline are allowed).
+///   (to indicate that all modes up to inline are allowed).
 /// * If the policy is set, we'll return the value from the policy.
 /// * If we fail to read the policy for any other reason, we'll return an error
-/// (which should be treated as "disabled by policy")
+///   (which should be treated as "disabled by policy")
 pub fn get_allowed_mode_from_policy(config: &impl ConfigProvider) -> Result<SudoMode> {
     match config.get_policy_mode() {
         Ok(v) => v.min(3).try_into(),

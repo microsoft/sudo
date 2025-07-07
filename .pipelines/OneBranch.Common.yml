@@ -15,6 +15,10 @@ parameters: # parameters are shown up in ADO UI in a build queue time
     - Stable
     - Dev
 
+- name: extraCargoArgs
+  type: string
+  default: ""
+
 - name: tracingGuid
   type: string
   default: ffffffff-ffff-ffff-ffff-ffffffffffff
@@ -27,7 +31,7 @@ steps:
     # We recommend setting this to a specific numbered version such as `ms-1.68` -- we do not recommend
     # setting it to `ms-stable`.
     # For details on this, see https://eng.ms/docs/more/rust/topics/conventions#toolchain-usage
-    rustVersion: ms-1.75
+    rustVersion: ms-1.87
 
     # Space separated list of additional targets: only the host target is supported with the toolchain by default.
     #
@@ -58,10 +62,10 @@ steps:
 
 # First, build and test each branding.
 - ${{ each brand in parameters.brandings }}:
-  - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen 2>&1
+  - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} ${{parameters.extraCargoArgs}} --frozen 2>&1
     displayName: Build ${{brand}} Debug
 
-  - script: cargo test --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen 2>&1
+  - script: cargo test --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} ${{parameters.extraCargoArgs}} --frozen 2>&1
     displayName: Test ${{brand}} Debug
 
 # We suggest fmt and clippy after build and test, to catch build breaks and test
@@ -71,13 +75,13 @@ steps:
   displayName: Check formatting
 
 - ${{ each brand in parameters.brandings }}:
-  - script: cargo clippy --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --frozen -- -D warnings 2>&1
+  - script: cargo clippy --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} ${{parameters.extraCargoArgs}} --frozen -- -D warnings 2>&1
     displayName: Clippy (Linting) ${{brand}}
 
   # Build release last because it takes the longest and we should have gotten
   # all available error signal by this point.
   - ${{ each platform in parameters.buildPlatforms }}:
-    - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} --target ${{platform}} --frozen --release 2>&1
+    - script: cargo build --config .cargo\ms-toolchain-config.toml --no-default-features --features ${{brand}} ${{parameters.extraCargoArgs}} --target ${{platform}} --frozen --release 2>&1
       env:
         MAGIC_TRACING_GUID: ${{ parameters.tracingGuid }}
       displayName: Build ${{brand}}-${{platform}} Release

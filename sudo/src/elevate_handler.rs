@@ -74,6 +74,7 @@ pub fn spawn_target_for_request(request: &ElevateRequest) -> Result<std::process
 /// Execute the elevation request.
 /// * Conditionally attach to the parent process's console (if requested)
 /// * Spawn the target process (with redirected input/output if requested, and with the environment variables passed in if needed)
+///
 /// Called by rust_handle_elevation_request
 pub fn handle_elevation_request(request: &ElevateRequest) -> Result<Owned<HANDLE>> {
     // Log the request we received to the event log. This should create a pair
