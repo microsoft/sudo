@@ -1,0 +1,13 @@
+steps:
+  - task: NuGetAuthenticate@1
+  - pwsh: |-
+      nuget install UndockedEOConfiguration -OutputDirectory _ueo
+      $PackageRoot = (Get-Item _ueo\UndockedEOConfiguration*).FullName
+      echo "##vso[task.setvariable variable=SUDO_CFG_UNDOCKED_EO_PATH]$PackageRoot\content"
+    displayName: Install Undocked EO Configuration
+  - task: UseDotNet@2 # the Sarif tools need this.
+    inputs:
+      version: 3.1.x
+  - task: UseDotNet@2 # the Sarif tools need this also for some unknown reason
+    inputs:
+      version: 6.0.x

@@ -1,10 +1,21 @@
 use embed_manifest::embed_manifest_file;
-use std::path::PathBuf;
 use std::process::Command;
+use std::{env::VarError, path::PathBuf};
 use {
     std::{env, io},
     winres::WindowsResource,
 };
+
+#[allow(dead_code)]
+fn env_opt(name: &str) -> String {
+    match std::env::var(name) {
+        Ok(value) => value,
+        Err(VarError::NotPresent) => String::new(),
+        Err(VarError::NotUnicode(_)) => {
+            panic!("Environment variable `{name}` is not valid Unicode")
+        }
+    }
+}
 
 fn get_sdk_path() -> Option<String> {
     let mut sdk_path: Option<String> = None;
@@ -52,6 +63,37 @@ fn get_sdk_tool(sdk_path: &Option<String>, tool_name: &str) -> String {
         }
     };
     tool_path
+}
+
+#[cfg(feature = "compliance")]
+fn add_cc_compliance_build_rules(build: &mut cc::Build, phase: &str) {
+    let out_dir = PathBuf::from(env_opt("OUT_DIR"));
+    build
+        .flags([
+            // Windows Undocked Build - Required Compiler Warnings
+            "/wl4146", "/wl4308", "/wl4509", "/wl4510", "/wl4532", "/wl4533", "/wl4610", "/wl4700",
+            "/wl4789", "/W4", "/sdl",
+        ])
+        .flag(format!(
+            "/experimental:log{}",
+            out_dir.join(format!("{phase}_msvc.sarif")).display()
+        ));
+
+    let undocked_eo_config = env_opt("SUDO_CFG_UNDOCKED_EO_PATH");
+    if !undocked_eo_config.is_empty() {
+        build.flags([
+            "/analyze",
+            format!("/analyze:ruleset{undocked_eo_config}\\mandatory_to_fix.ruleset").as_str(),
+            "/analyze:pluginespxengine.dll",
+            format!(
+                "/analyze:log{}",
+                out_dir.join(format!("{phase}_prefast.sarif")).display()
+            )
+            .as_str(),
+            "/analyze:log:format:sarif",
+            "/analyze:log:includesuppressed",
+        ]);
+    }
 }
 
 fn build_rpc() {
@@ -148,6 +190,9 @@ fn build_rpc() {
         .file("../cpp/rpc/RpcClient.c")
         .flag("/guard:ehcont");
 
+    #[cfg(feature = "compliance")]
+    add_cc_compliance_build_rules(&mut rpc_build, "rpc");
+
     println!("build cmdline: {:?}", rpc_build.get_compiler().to_command());
     rpc_build.compile("myRpc");
     println!("cargo:rustc-link-lib=myRpc");
@@ -190,6 +235,9 @@ fn build_logging() {
         .include(env::var("OUT_DIR").unwrap())
         .file("../cpp/logging/EventViewerLogging.c")
         .flag("/guard:ehcont");
+
+    #[cfg(feature = "compliance")]
+    add_cc_compliance_build_rules(&mut logging_build, "logging");
 
     println!(
         "build cmdline: {:?}",

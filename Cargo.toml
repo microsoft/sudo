@@ -18,7 +18,7 @@ members = [
 # See: https://doc.rust-lang.org/cargo/reference/workspaces.html#the-dependencies-table
 #
 [workspace.dependencies]
-cc = "1.0"
+cc = "1.2"
 # We're disabling the default features for clap because we don't need the
 # "suggestions" feature. That provides really amazing suggestions for typos, but
 # it unfortunately does not seem to support localization.

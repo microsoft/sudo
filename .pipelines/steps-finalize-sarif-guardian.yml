@@ -1,0 +1,21 @@
+steps:
+  - pwsh: |
+      dotnet tool install --global Sarif.Multitool
+      sarif merge $(CARGO_TARGET_DIR)\*.sarif --recurse --output-directory $(Build.BinariesDirectory)
+    displayName: Merge SARIF files
+
+  - task: ImportExternal@1
+    inputs:
+      SarifFilePath: $(Build.BinariesDirectory)\merged.sarif
+      TargetRoot: $(Build.SourcesDirectory)
+      ToolName: 'MSVC'
+    displayName: 'Import MSVC warnings into Guardian'
+
+  - task: SDLNativeRules@3
+    displayName: 'Import PREfast results into Guardian'
+    continueOnError: true
+    inputs:
+      copyLogsOnly: true
+      logRootDirectory: $(CARGO_TARGET_DIR)
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
