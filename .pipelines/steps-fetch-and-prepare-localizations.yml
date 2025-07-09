@@ -4,7 +4,7 @@ parameters:
     default: true
 
 steps:
-  - task: TouchdownBuildTask@3
+  - task: TouchdownBuildTask@5
     displayName: Download Localization Files
     inputs:
       teamId: 92350
