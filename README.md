@@ -13,14 +13,11 @@ Here you can report issues and file feature requests.
 ## Relationship to `sudo` on Unix/Linux
 
 Everything about permissions and the command line experience is
-different between Windows and Linux. This project is not a fork of the Unix/Linux
-`sudo` project, nor is it a port of that `sudo` project. Instead, Sudo for
+different between Windows and Linux. This project is neither a fork nor a
+port of the Unix/Linux `sudo` project. Instead, Sudo for
 Windows is a Windows-specific implementation of the `sudo` concept.
 
-As the two are entirely different applications, you'll find that certain
-elements of the traditional `sudo` experience are not present in Sudo for Windows, and
-vice versa. Scripts and documentation that are written for `sudo` may not
-be able to be used directly with Sudo for Windows without some modification.
+As the two are entirely different applications, certain elements of the traditional `sudo` experience are missing in `Sudo` for Windows, and vice versa. Scripts and documentation written for sudo may not work directly with Sudo for Windows without modification.
 
 ## Documentation
 
@@ -37,8 +34,7 @@ Check out [CONTRIBUTING.md](https://github.com/microsoft/sudo/blob/main/CONTRIBU
 
 In the meantime, you can contribute to the [`sudo.ps1`] script. This script is
 meant to be a helper wrapper around `sudo.exe` that provides a more
-user-friendly experience for using sudo from PowerShell. This script is located
-in the `scripts/` directory.
+user-friendly experience for using sudo from PowerShell. The script can be found in the [`scripts/`](./scripts) directory.
 
 ## Communicating with the Team
 
