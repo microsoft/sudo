@@ -8,8 +8,8 @@ steps:
     displayName: Download Localization Files
     inputs:
       teamId: 92350
-      TDBuildServiceConnection: $(TouchdownServiceConnection)
-      authType: SubjectNameIssuer
+      FederatedIdentityTDBuildServiceConnection: $(TouchdownServiceConnection)
+      authType: FederatedIdentityTDBuild
       resourceFilePath: |
         **\en-US\*.resw
       appendRelativeDir: true
