@@ -143,7 +143,7 @@ pub fn handle_elevation_request(request: &ElevateRequest) -> Result<Owned<HANDLE
             HANDLE(child.into_raw_handle() as _),
             current_process,
             &mut *child_handle,
-            (PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_DUP_HANDLE | PROCESS_SYNCHRONIZE).0,
+            (PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE).0,
             false,
             DUPLICATE_CLOSE_SOURCE,
         )?;

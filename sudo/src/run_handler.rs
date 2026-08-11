@@ -489,7 +489,7 @@ fn send_request_via_rpc(req: &ElevateRequest, nonce: u32) -> Result<i32> {
             .ok()?;
 
             let expected =
-                PROCESS_DUP_HANDLE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE;
+                PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE;
             debug_assert!(info.GrantedAccess == expected.0);
         }
     }
