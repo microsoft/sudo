@@ -1,4 +1,8 @@
+mod ap_detection;
+mod broker_client;
+mod broker_protocol;
 mod elevate_handler;
+mod hello_auth;
 mod helpers;
 mod logging_bindings;
 mod messages;

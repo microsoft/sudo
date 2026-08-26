@@ -1,4 +1,8 @@
+use crate::ap_detection::{ElevationCapabilities, ElevationEnvironment, HelloAvailability};
+use crate::broker_client;
+use crate::broker_protocol::{ExecutionMode, StatusCode};
 use crate::elevate_handler::spawn_target_for_request;
+use crate::hello_auth;
 use crate::helpers::*;
 use crate::logging_bindings::event_log_request;
 use crate::messages::ElevateRequest;
@@ -15,7 +19,8 @@ use windows::Win32::System::WindowsProgramming::PUBLIC_OBJECT_BASIC_INFORMATION;
 use windows::{
     core::*, Wdk::System::Threading::*, Win32::Foundation::*, Win32::Storage::FileSystem::*,
     Win32::System::Console::*, Win32::System::Diagnostics::Debug::*, Win32::System::Rpc::*,
-    Win32::System::SystemInformation::*, Win32::System::Threading::*, Win32::UI::Shell::*,
+    Win32::System::SystemInformation::*, Win32::System::Threading::*, 
+    Win32::System::Services::*, Win32::UI::Shell::*,
     Win32::UI::WindowsAndMessaging::*,
 };
 
@@ -310,35 +315,217 @@ fn do_request(req: ElevateRequest, copy_env: bool, manually_requested_dir: bool)
         // We're not running elevated here. We need to start the
         // elevated sudo and send it our request to handle.
 
-        // In ForceNewWindow mode, we want to use ShellExecuteEx to create the
-        // target process, whenever possible. This has the benefit of having the
-        // UAC display the target app directly, and also avoiding any RPC calls
-        // at all.
-        //
-        // However, there are caveats which prevent us from using ShellExecuteEx
-        // in all cases:
-        // * We can't use ShellExecuteEx if we need to copy the environment,
-        //   because ShellExecuteEx doesn't allow us to set the environment of
-        //   the target process. So if they want environment variables copied,
-        //   we need to use RPC.
-        // * ShellExecuteEx will always set the CWD to system32, if the target
-        //   exe is in the Windows dir. It does this _deep_ in the OS and
-        //   there's nothing we can do to avoid it. So, if the user has
-        //   requested a CWD, we need to use RPC.
-        //    - Theoretically, we only need to use RPC if the target app is in
-        //      the Windows dir, but we'd need to recreate the internal logic of
-        //      CreateProcess to resolve the commandline we've been given here
-        //      to determine that.
-        let should_use_runas =
-            req.sudo_mode == SudoMode::ForceNewWindow && !copy_env && !manually_requested_dir;
+        // ====================================================================
+        // ADMINISTRATOR PROTECTION (AP) DETECTION AND SMART ROUTING
+        // ====================================================================
+        // Detect the elevation environment to determine the best elevation path:
+        // - StandardUAC: Traditional UAC elevation (legacy path)
+        // - AdminProtectionWithHello: AP enabled with Windows Hello → use broker
+        // - AdminProtectionWithoutHello: AP enabled but no Hello → error
+        // - NoAdminPrivileges: User lacks admin privileges → error
+        // - Unknown: Uncertain environment → fallback to legacy
+        
+        let capabilities = match ElevationCapabilities::detect() {
+            Ok(caps) => caps,
+            Err(e) => {
+                tracing::trace_log_message(&format!("AP detection failed: {:?}, using legacy path", e));
+                // If detection fails, fall back to legacy behavior
+                return use_legacy_elevation(&req, copy_env, manually_requested_dir);
+            }
+        };
 
-        if should_use_runas {
-            tracing::trace_log_message("Direct ShellExecute");
-            runas_admin(&req.application, &join_args(&req.args), SW_NORMAL)?;
-            Ok(0)
-        } else {
-            tracing::trace_log_message("starting RPC handoff");
-            handoff_to_elevated(&req)
+        tracing::trace_log_message(&format!("Elevation environment: {:?}", capabilities.environment));
+        tracing::trace_log_message(&format!("Hello availability: {:?}", capabilities.hello_availability));
+        tracing::trace_log_message(&format!("Broker available: {}", capabilities.broker_available));
+
+        match capabilities.environment {
+            ElevationEnvironment::StandardUAC => {
+                // Traditional UAC elevation - use the existing legacy path
+                tracing::trace_log_message("Using legacy UAC elevation");
+                use_legacy_elevation(&req, copy_env, manually_requested_dir)
+            }
+            
+            ElevationEnvironment::AdminProtectionWithHello => {
+                // AP is enabled and Windows Hello is configured
+                // Use the broker-based elevation path with Hello authentication
+                tracing::trace_log_message("Using Administrator Protection with Windows Hello");
+                
+                // Check if broker is available
+                if !capabilities.broker_available {
+                    eprintln!("Error: Windows Administrator Protection requires the sudo AP broker service.");
+                    eprintln!("Please install and start the service:");
+                    eprintln!("  sc.exe create SudoAPBroker binPath=\"<path-to-broker>\\sudo_ap_broker.exe\"");
+                    eprintln!("  sc.exe start SudoAPBroker");
+                    eprintln!();
+                    eprintln!("Alternatively, use the legacy elevation with --force-legacy flag.");
+                    return Err(windows::core::Error::from_win32(ERROR_SERVICE_NOT_ACTIVE.0).into());
+                }
+
+                use_ap_broker_elevation(&req, copy_env)
+            }
+            
+            ElevationEnvironment::AdminProtectionWithoutHello => {
+                // AP is enabled but Windows Hello is not configured
+                // This is an error state - user needs to configure Hello
+                eprintln!("Error: Windows Administrator Protection is enabled but Windows Hello is not configured.");
+                eprintln!("Please configure Windows Hello in Settings:");
+                eprintln!("  Settings > Accounts > Sign-in options > Windows Hello");
+                eprintln!();
+                eprintln!("Alternatively, disable Administrator Protection or use the legacy elevation");
+                eprintln!("with --force-legacy flag (if policy allows).");
+                return Err(windows::core::Error::from_win32(ERROR_AUTHENTICATION_FIREWALL_FAILED.0).into());
+            }
+            
+            ElevationEnvironment::NoAdminPrivileges => {
+                // User is not an administrator - cannot elevate
+                eprintln!("Error: Current user does not have administrator privileges.");
+                eprintln!("Please run sudo as a user with administrator privileges.");
+                return Err(windows::core::Error::from_win32(ERROR_ACCESS_DENIED.0).into());
+            }
+            
+            ElevationEnvironment::Unknown => {
+                // Could not determine the environment reliably
+                // Fall back to legacy elevation with a warning
+                tracing::trace_log_message("Warning: Unknown elevation environment, using legacy path");
+                eprintln!("Warning: Could not determine elevation environment. Using legacy UAC elevation.");
+                use_legacy_elevation(&req, copy_env, manually_requested_dir)
+            }
+        }
+    }
+}
+
+/// Helper function to use the legacy UAC elevation path
+/// This encapsulates the original elevation logic for StandardUAC environments
+fn use_legacy_elevation(req: &ElevateRequest, copy_env: bool, manually_requested_dir: bool) -> Result<i32> {
+    // In ForceNewWindow mode, we want to use ShellExecuteEx to create the
+    // target process, whenever possible. This has the benefit of having the
+    // UAC display the target app directly, and also avoiding any RPC calls
+    // at all.
+    //
+    // However, there are caveats which prevent us from using ShellExecuteEx
+    // in all cases:
+    // * We can't use ShellExecuteEx if we need to copy the environment,
+    //   because ShellExecuteEx doesn't allow us to set the environment of
+    //   the target process. So if they want environment variables copied,
+    //   we need to use RPC.
+    // * ShellExecuteEx will always set the CWD to system32, if the target
+    //   exe is in the Windows dir. It does this _deep_ in the OS and
+    //   there's nothing we can do to avoid it. So, if the user has
+    //   requested a CWD, we need to use RPC.
+    //    - Theoretically, we only need to use RPC if the target app is in
+    //      the Windows dir, but we'd need to recreate the internal logic of
+    //      CreateProcess to resolve the commandline we've been given here
+    //      to determine that.
+    let should_use_runas =
+        req.sudo_mode == SudoMode::ForceNewWindow && !copy_env && !manually_requested_dir;
+
+    if should_use_runas {
+        tracing::trace_log_message("Direct ShellExecute");
+        runas_admin(&req.application, &join_args(&req.args), SW_NORMAL)?;
+        Ok(0)
+    } else {
+        tracing::trace_log_message("starting RPC handoff");
+        handoff_to_elevated(req)
+    }
+}
+
+/// Helper function to use the Administrator Protection broker-based elevation
+/// This authenticates with Windows Hello and communicates with the broker service
+fn use_ap_broker_elevation(req: &ElevateRequest, copy_env: bool) -> Result<i32> {
+    // Step 1: Authenticate with Windows Hello
+    tracing::trace_log_message("Requesting Windows Hello authentication");
+    
+    let auth_message = format!(
+        "sudo is requesting administrator privileges to run: {}",
+        req.application
+    );
+    
+    let auth_token = match hello_auth::authenticate_with_hello(Some(&auth_message)) {
+        Ok(token) => {
+            tracing::trace_log_message("Windows Hello authentication successful");
+            token
+        }
+        Err(e) => {
+            eprintln!("Windows Hello authentication failed: {}", e);
+            eprintln!();
+            eprintln!("Elevation cancelled.");
+            return Err(windows::core::Error::from_win32(ERROR_CANCELLED.0).into());
+        }
+    };
+
+    // Step 2: Convert execution mode
+    let execution_mode = match req.sudo_mode {
+        SudoMode::Normal => ExecutionMode::Inline,
+        SudoMode::ForceNewWindow => ExecutionMode::NewWindow,
+        SudoMode::DisableInput => ExecutionMode::Hidden,
+        SudoMode::Disabled => {
+            // This should never happen in practice since we check enabled status earlier
+            return Err(windows::core::Error::from_win32(ERROR_NOT_SUPPORTED.0).into());
+        }
+    };
+
+    // Step 3: Prepare environment variables
+    let env_vars = if copy_env {
+        env_as_string()
+    } else {
+        Vec::new()
+    };
+
+    // Step 4: Send elevation request to broker
+    tracing::trace_log_message("Sending elevation request to broker");
+    
+    let response = match broker_client::elevate_via_broker(
+        &req.application,
+        &req.args,
+        req.target_dir.as_deref(),
+        execution_mode,
+        &env_vars,
+        auth_token,
+    ) {
+        Ok(resp) => {
+            tracing::trace_log_message(&format!("Broker response status: {:?}", resp.status));
+            resp
+        }
+        Err(e) => {
+            eprintln!("Failed to communicate with AP broker service: {}", e);
+            eprintln!();
+            eprintln!("Please ensure the SudoAPBroker service is running:");
+            eprintln!("  sc.exe query SudoAPBroker");
+            eprintln!("  sc.exe start SudoAPBroker");
+            return Err(e);
+        }
+    };
+
+    // Step 5: Handle response
+    match response.status {
+        StatusCode::Success => {
+            tracing::trace_log_message("Elevation completed successfully");
+            Ok(response.exit_code.unwrap_or(0))
+        }
+        StatusCode::AuthenticationFailed => {
+            eprintln!("Error: Authentication failed. Please try again.");
+            Err(windows::core::Error::from_win32(ERROR_AUTHENTICATION_FIREWALL_FAILED.0).into())
+        }
+        StatusCode::ServiceError => {
+            eprintln!("Error: Broker service encountered an error.");
+            if let Some(ref error_msg) = response.error_message {
+                eprintln!("Details: {}", error_msg);
+            }
+            Err(windows::core::Error::from_win32(ERROR_SERVICE_SPECIFIC_ERROR.0).into())
+        }
+        StatusCode::ProcessCreationFailed => {
+            eprintln!("Error: Failed to create elevated process.");
+            if let Some(ref error_msg) = response.error_message {
+                eprintln!("Details: {}", error_msg);
+            }
+            Err(windows::core::Error::from_win32(ERROR_PROCESS_ABORTED.0).into())
+        }
+        StatusCode::Unknown => {
+            eprintln!("Error: Unknown error from broker service.");
+            if let Some(ref error_msg) = response.error_message {
+                eprintln!("Details: {}", error_msg);
+            }
+            Err(windows::core::Error::from_win32(ERROR_INTERNAL_ERROR.0).into())
         }
     }
 }

@@ -5,6 +5,7 @@ members = [
     "sudo",
     "sudo_events",
     "win32resources",
+    "sudo_ap_broker",
 ]
 
 # This list of dependencies allows us to specify version numbers for dependency in a single place.
@@ -18,7 +19,11 @@ members = [
 # See: https://doc.rust-lang.org/cargo/reference/workspaces.html#the-dependencies-table
 #
 [workspace.dependencies]
+anyhow = "1.0"
+bincode = "1.3"
 cc = "1.2"
+hmac = "0.12"
+sha2 = "0.10"
 # We're disabling the default features for clap because we don't need the
 # "suggestions" feature. That provides really amazing suggestions for typos, but
 # it unfortunately does not seem to support localization.
@@ -28,11 +33,18 @@ cc = "1.2"
 # See: https://docs.rs/clap/latest/clap/_features/index.html
 clap = { version = "4.4.7", default-features = false, features = ["std"] }
 embed-manifest = "1.4"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 which = "6.0"
 win_etw_provider = "0.1.8"
 win_etw_macros = "0.1.8"
 windows = "0.57"
 windows-registry = "0.1"
+windows-service = "0.6"
 winres = "0.1"
 
 # For more profile settings, and details on the ones below, see https://doc.rust-lang.org/cargo/reference/profiles.html#profile-settings

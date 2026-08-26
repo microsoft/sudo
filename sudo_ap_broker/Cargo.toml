@@ -1,0 +1,50 @@
+[package]
+name = "sudo_ap_broker"
+version = "1.0.0"
+edition = "2021"
+authors = ["Microsoft Corporation"]
+description = "Elevation broker service for Sudo for Windows with Administrator Protection support"
+license = "MIT"
+
+[dependencies]
+anyhow.workspace = true
+bincode.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
+windows-service.workspace = true
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Services",
+    "Win32_System_Threading",
+    "Win32_System_Pipes",
+    "Win32_System_IO",
+    "Win32_System_Console",
+    "Win32_System_Environment",
+    "Win32_System_ProcessStatus",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_Registry",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_JobObjects",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Memory",
+    "Win32_System_EventLog",
+]
+
+[dependencies.sudo]
+path = "../sudo"
+
+[lib]
+name = "sudo_ap_broker"
+path = "src/lib.rs"
+
+[[bin]]
+name = "SudoElevationBroker"
+path = "src/main.rs"
