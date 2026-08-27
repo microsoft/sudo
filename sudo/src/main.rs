@@ -16,7 +16,15 @@ use helpers::*;
 use run_handler::run_target;
 use std::env;
 use tracing::*;
-use windows::{Win32::{Foundation::*, System::{Console::*, SystemServices::{PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0}, Threading::*}}, core::*};
+use windows::{
+    core::*,
+    Win32::{
+        Foundation::*,
+        System::{
+            Console::*, SystemServices::PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0, Threading::*,
+        },
+    },
+};
 
 // Clap does provide a nice macro for args, which defines args with a syntax
 // close to what the actual help text would be. Unfortunately, we're not using
@@ -381,10 +389,14 @@ fn do_elevate(matches: &ArgMatches) -> Result<i32> {
     _ = check_enabled_or_bail();
 
     unsafe {
-        let policy_buffer = PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0{
-            Flags: 0x1 /* EnforceRedirectionTrust */
+        let policy_buffer = PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0 {
+            Flags: 0x1, /* EnforceRedirectionTrust */
         };
-        SetProcessMitigationPolicy(ProcessRedirectionTrustPolicy, &policy_buffer as *const _ as _, std::mem::size_of::<PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0>())?;
+        SetProcessMitigationPolicy(
+            ProcessRedirectionTrustPolicy,
+            &policy_buffer as *const _ as _,
+            std::mem::size_of::<PROCESS_MITIGATION_REDIRECTION_TRUST_POLICY_0>(),
+        )?;
     }
 
     let parent_pid = matches.get_one::<String>("PARENT").unwrap().parse::<u32>();

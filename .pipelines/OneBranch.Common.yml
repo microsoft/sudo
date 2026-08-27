@@ -31,7 +31,7 @@ steps:
     # We recommend setting this to a specific numbered version such as `ms-1.68` -- we do not recommend
     # setting it to `ms-stable`.
     # For details on this, see https://eng.ms/docs/more/rust/topics/conventions#toolchain-usage
-    rustVersion: ms-1.87
+    rustVersion: ms-prod
 
     # Space separated list of additional targets: only the host target is supported with the toolchain by default.
     #
