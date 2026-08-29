@@ -15,6 +15,7 @@ use windows::Win32::System::Rpc::RPC_STATUS;
 use windows::Win32::System::SystemServices::{
     IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE, SE_TOKEN_USER, SE_TOKEN_USER_1,
 };
+use windows::Win32::UI::Shell::{AssocQueryStringW, ASSOCF, ASSOCSTR_COMMAND};
 use windows::{
     core::*, Win32::Foundation::*, Win32::Security::Authorization::*, Win32::Security::*,
     Win32::System::Console::*, Win32::System::Threading::*,
@@ -556,6 +557,52 @@ pub fn get_exe_subsystem<P: AsRef<Path>>(path: P) -> Result<IMAGE_SUBSYSTEM> {
     }
 
     Ok(nt.OptionalHeader.Subsystem)
+}
+
+// TODO: Improve this logic
+pub fn get_default_application<P: AsRef<Path>>(path: P) -> Result<String> {
+    let ext = path.as_ref()
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map_or_else(String::new, |ext_str| format!(".{}", ext_str));
+    let mut buffer_size: u32 = 0;
+
+    let h_result = unsafe {
+        AssocQueryStringW(
+            ASSOCF::default(),
+            ASSOCSTR_COMMAND,
+            PCWSTR(HSTRING::from(ext.clone()).as_ptr()),
+            PCWSTR::null(),
+            PWSTR::null(),
+            &mut buffer_size,
+        )
+    };
+    if h_result.is_err() {
+        return Err(h_result.into());
+    }
+
+    let mut buffer: Vec<u16> = vec![0; buffer_size as usize];
+    let h_result = unsafe {
+        AssocQueryStringW(
+            ASSOCF::default(),
+            ASSOCSTR_COMMAND,
+            PCWSTR(HSTRING::from(ext).as_ptr()),
+            PCWSTR::null(),
+            PWSTR(buffer.as_mut_ptr()),
+            &mut buffer_size,
+        )
+    };
+    if h_result.is_err() {
+        return Err(h_result.into());
+    }
+
+    // The replace statements account for shell/open/command quirks
+    let result =
+    String::from_utf16_lossy(&buffer[..buffer_size as usize - 1])
+        .replace("\"%1\"", "")
+        .replace("%1", "");
+
+    Ok(result)
 }
 
 #[cfg(test)]
