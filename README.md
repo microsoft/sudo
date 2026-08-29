@@ -4,7 +4,7 @@ Welcome to the repository for [Sudo for Windows][sudo-for-windows] 🥪. Sudo
 for Windows allows users to run elevated commands directly from unelevated
 terminal windows.
 
-The "Inbox" version of sudo is available for Windows 11 builds 26045 and later. If you're on an Insiders
+The built-in (“Inbox”) version of Sudo is available starting from Windows 11 build 26045. If you're on an Insiders
 build with sudo, you can enable it in the Windows Settings app, on the
 "Developer Features" page.
 
@@ -13,14 +13,11 @@ Here you can report issues and file feature requests.
 ## Relationship to `sudo` on Unix/Linux
 
 Everything about permissions and the command line experience is
-different between Windows and Linux. This project is not a fork of the Unix/Linux
-`sudo` project, nor is it a port of that `sudo` project. Instead, Sudo for
+different between Windows and Linux. This project is neither a fork nor a
+port of the Unix/Linux `sudo` project. Instead, Sudo for
 Windows is a Windows-specific implementation of the `sudo` concept.
 
-As the two are entirely different applications, you'll find that certain
-elements of the traditional `sudo` experience are not present in Sudo for Windows, and
-vice versa. Scripts and documentation that are written for `sudo` may not
-be able to be used directly with Sudo for Windows without some modification.
+As the two are entirely different applications, certain elements of the traditional `sudo` experience are missing in `Sudo` for Windows, and vice versa. Scripts and documentation written for sudo may not work directly with Sudo for Windows without modification.
 
 ## Documentation
 
@@ -37,8 +34,7 @@ Check out [CONTRIBUTING.md](https://github.com/microsoft/sudo/blob/main/CONTRIBU
 
 In the meantime, you can contribute to the [`sudo.ps1`] script. This script is
 meant to be a helper wrapper around `sudo.exe` that provides a more
-user-friendly experience for using sudo from PowerShell. This script is located
-in the `scripts/` directory.
+user-friendly experience for using sudo from PowerShell. The script can be found in the [`scripts/`](./scripts) directory.
 
 ## Communicating with the Team
 
@@ -52,10 +48,10 @@ If you would like to ask a question that you feel doesn't warrant an issue
 answer threads. Otherwise, you can reach out to us via your social media
 platform of choice:
 
-* Mike Griese, Senior Developer: [@zadjii@mastodon.social](https://mastodon.social/@zadjii)
-* Jordi Adoumie, Product Manager: [@joadoumie](https://twitter.com/joadoumie)
-* Dustin Howett, Engineering Lead: [@dhowett@mas.to](https://mas.to/@DHowett)
-* Clint Rutkas, Lead Product Manager: [@crutkas](https://twitter.com/clintrutkas)
+- Mike Griese, Senior Developer: [@zadjii@mastodon.social](https://mastodon.social/@zadjii)
+- Jordi Adoumie, Product Manager: [@joadoumie](https://twitter.com/joadoumie)
+- Dustin Howett, Engineering Lead: [@dhowett@mas.to](https://mas.to/@DHowett)
+- Clint Rutkas, Lead Product Manager: [@crutkas](https://twitter.com/clintrutkas)
 
 ## Code of Conduct
 
