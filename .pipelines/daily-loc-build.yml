@@ -26,12 +26,13 @@ steps:
   fetchTags: false # Tags still result in depth > 1 fetch; we don't need them here
   persistCredentials: true
 
-- task: MicrosoftTDBuild.tdbuild-task.tdbuild-task.TouchdownBuildTask@3
+- task: MicrosoftTDBuild.tdbuild-task.tdbuild-task.TouchdownBuildTask@5
   displayName: 'Touchdown Build - 92350, PRODEXT'
   inputs:
     teamId: 92350
-    TDBuildServiceConnection: $(TouchdownServiceConnection)
-    authType: SubjectNameIssuer
+    serviceTreeId: $(TouchdownServiceTreeId)
+    FederatedIdentityTDBuildServiceConnection: $(TouchdownServiceConnection)
+    authType: FederatedIdentityTDBuild
     resourceFilePath: |
      **\en-US\*.resw
     outputDirectoryRoot: LocOutput
