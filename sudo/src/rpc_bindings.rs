@@ -13,7 +13,7 @@ pub struct Utf8Str<'a> {
 }
 
 impl<'a> Utf8Str<'a> {
-    pub fn new(s: &str) -> Utf8Str {
+    pub fn new(s: &str) -> Utf8Str<'_> {
         Utf8Str {
             length: min(s.len(), u32::MAX as usize) as u32,
             data: s.as_ptr(),

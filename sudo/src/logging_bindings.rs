@@ -17,11 +17,11 @@ extern "C" {
 
 #[repr(transparent)]
 #[derive(Default)]
-struct OwnedReghandle(pub u64);
+struct OwnedReghandle(pub REGHANDLE);
 
 impl Drop for OwnedReghandle {
     fn drop(&mut self) {
-        if self.0 != 0 {
+        if self.0 .0 != 0 {
             unsafe {
                 EventUnregister(self.0);
             }
@@ -30,7 +30,7 @@ impl Drop for OwnedReghandle {
 }
 
 impl Deref for OwnedReghandle {
-    type Target = u64;
+    type Target = REGHANDLE;
 
     fn deref(&self) -> &Self::Target {
         &self.0

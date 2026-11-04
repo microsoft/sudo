@@ -6,7 +6,7 @@ use std::ffi::{c_void, CStr};
 use std::mem::{size_of, take};
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicBool, Ordering};
-use windows::Win32::Foundation::{ERROR_BUSY, GENERIC_ALL, HANDLE, PSID};
+use windows::Win32::Foundation::{ERROR_BUSY, GENERIC_ALL, HANDLE};
 use windows::{
     core::*, Win32::Security::Authorization::*, Win32::Security::*, Win32::System::Memory::*,
     Win32::System::Rpc::*, Win32::System::SystemServices::*, Win32::System::Threading::*,
@@ -109,7 +109,7 @@ fn create_security_descriptor_for_process(pid: u32) -> Result<OwnedSecurityDescr
             let mut sid_buffer = [0u8; SECURITY_MAX_SID_SIZE];
             let mut sid_len = sid_buffer.len() as u32;
             let sid = PSID(&mut sid_buffer as *mut _ as _);
-            CreateWellKnownSid(WinMediumLabelSid, None, sid, &mut sid_len)?;
+            CreateWellKnownSid(WinMediumLabelSid, None, Some(sid), &mut sid_len)?;
 
             const SACL_BUFFER_PREFIX_LEN: usize =
                 size_of::<ACL>() + size_of::<SYSTEM_MANDATORY_LABEL_ACE>();
@@ -250,7 +250,13 @@ fn wrap_elevate_request(
     let handles = unsafe {
         let pipes = &*pipe_handles;
         let files = &*file_handles;
-        std::array::from_fn(|i| if pipes[i].0 != 0 { pipes[i] } else { files[i] })
+        std::array::from_fn(|i| {
+            if !pipes[i].0.is_null() {
+                pipes[i]
+            } else {
+                files[i]
+            }
+        })
     };
 
     Ok(ElevateRequest {
