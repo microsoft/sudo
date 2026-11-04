@@ -10,11 +10,12 @@ mod run_handler;
 mod tests;
 mod tracing;
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
 use elevate_handler::start_rpc_server;
 use helpers::*;
 use run_handler::run_target;
 use std::env;
+use std::ffi::{OsStr, OsString};
+use std::fmt::Write;
 use tracing::*;
 use windows::{
     core::*,
@@ -24,166 +25,331 @@ use windows::{
     },
 };
 
-// Clap does provide a nice macro for args, which defines args with a syntax
-// close to what the actual help text would be. Unfortunately, we're not using
-// that macro, because it doesn't play well with localization. The comments
-// throughout here help show how the macro would have worked.
-fn sudo_cli(config: &PolicyConfig) -> Command {
-    let mut app = Command::new(env!("CARGO_CRATE_NAME"));
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RunOptions {
+    copy_env: bool,
+    mode: Option<SudoMode>,
+    chdir: Option<OsString>,
+    commandline: Vec<OsString>,
+}
 
-    if config.policy_mode == SudoMode::Disabled {
-        // Sudo is disabled by policy. The help text will be more specific.
-        app = app
-            .about(r::IDS_SUDONAME.get())
-            .long_about(r::IDS_DISABLEDBYPOLICY.get())
-            .override_help(r::IDS_DISABLEDBYPOLICY.get());
-    } else if config.allowed_mode == SudoMode::Disabled {
-        // In this case, our error message has some VT in it, so we need to
-        // turn VT on before we eventually print the message. Fortunately,
-        // the `check_enabled_or_bail` will make sure to enable & restore VT
-        // mode before printing that error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HelpTopic {
+    Root,
+    Run,
+    Config,
+    Elevate,
+    Help,
+}
 
-        // Sudo is disabled. We want to inform them when they see the help text.
-        app = app
-            .about(r::IDS_SUDONAME.get())
-            .long_about(r::IDS_DISABLEDLONGABOUT.get())
-            .override_help(r::IDS_DISABLEDLONGABOUT.get());
-    } else {
-        // Sudo is enabled. The help text will be standard.
-        app = app
-            .about(r::IDS_SUDONAME.get())
-            .long_about(r::IDS_LONGABOUT.get());
+#[derive(Debug, PartialEq, Eq)]
+enum CliAction {
+    Run(RunOptions),
+    Config(Option<SudoMode>),
+    Elevate {
+        parent: u32,
+        nonce: u32,
+        commandline: Vec<OsString>,
+    },
+    Help {
+        topic: HelpTopic,
+        long: bool,
+        code: i32,
+    },
+    Version,
+}
+
+#[derive(Debug)]
+struct CliError {
+    topic: HelpTopic,
+    error: lexopt::Error,
+}
+
+fn parse_args(
+    args: impl IntoIterator<Item = impl Into<OsString>>,
+) -> std::result::Result<CliAction, CliError> {
+    let mut parser = lexopt::Parser::from_args(args);
+    let mut topic = HelpTopic::Root;
+    parse_cli(&mut parser, &mut topic).map_err(|error| CliError { topic, error })
+}
+
+fn option_value(parser: &mut lexopt::Parser) -> std::result::Result<OsString, lexopt::Error> {
+    if let Some(value) = parser.optional_value() {
+        return Ok(value);
+    }
+    // Unlike lexopt's value(), clap did not consume a separate option as a value.
+    if let Some(value) = parser
+        .try_raw_args()
+        .and_then(|args| args.peek().map(OsStr::to_owned))
+    {
+        if value != "-" && value.as_encoded_bytes().starts_with(b"-") {
+            return Err(lexopt::Error::UnexpectedArgument(value));
+        }
+    }
+    parser.value()
+}
+
+fn parse_cli(
+    parser: &mut lexopt::Parser,
+    topic: &mut HelpTopic,
+) -> std::result::Result<CliAction, lexopt::Error> {
+    use lexopt::Arg::*;
+    use lexopt::ValueExt;
+
+    let mut run = RunOptions::default();
+    let mut enable = None;
+    let mut parent = None;
+    let mut nonce = None;
+    let mut conflict = None;
+    let mut seen_modes = 0u8;
+    let mut saw_arg = false;
+
+    loop {
+        // Consume the delimiter ourselves so `sudo -- run` executes a program
+        // named "run", rather than selecting the built-in subcommand.
+        if let Some(mut raw) = parser.try_raw_args() {
+            if raw.next_if(|arg| arg == "--").is_some() {
+                run.commandline.extend(raw);
+                saw_arg |= !run.commandline.is_empty();
+                if *topic == HelpTopic::Config && !run.commandline.is_empty() {
+                    return Err(lexopt::Error::UnexpectedArgument(run.commandline.remove(0)));
+                }
+                break;
+            }
+        }
+
+        let Some(arg) = parser.next()? else { break };
+        saw_arg = true;
+        match arg {
+            Short('h') | Long("help") if *topic == HelpTopic::Root => {
+                let long = matches!(arg, Long(_));
+                if long {
+                    parser.raw_args()?;
+                }
+                return Ok(CliAction::Help {
+                    topic: *topic,
+                    long,
+                    code: 0,
+                });
+            }
+            Short('V') | Long("version") if *topic == HelpTopic::Root => {
+                if matches!(arg, Long(_)) {
+                    parser.raw_args()?;
+                }
+                return Ok(CliAction::Version);
+            }
+            Short('E') | Long("preserve-env")
+                if matches!(topic, HelpTopic::Root | HelpTopic::Run) =>
+            {
+                if run.copy_env {
+                    return Err(
+                        "the argument '--preserve-env' cannot be used multiple times".into(),
+                    );
+                }
+                run.copy_env = true;
+            }
+            Short('N') | Long("new-window") | Long("disable-input") | Long("inline")
+                if matches!(topic, HelpTopic::Root | HelpTopic::Run) =>
+            {
+                let mode = match arg {
+                    Long("disable-input") => SudoMode::DisableInput,
+                    Long("inline") => SudoMode::Normal,
+                    _ => SudoMode::ForceNewWindow,
+                };
+                let bit = 1 << mode as u8;
+                if seen_modes & bit != 0 {
+                    return Err("each run mode may be specified only once".into());
+                }
+                seen_modes |= bit;
+                if run.mode.is_some() {
+                    conflict = Some("only one of '--new-window', '--disable-input', or '--inline' may be specified");
+                }
+                run.mode = Some(mode);
+            }
+            Short('D') | Long("chdir") if matches!(topic, HelpTopic::Root | HelpTopic::Run) => {
+                if run.chdir.is_some() {
+                    return Err("the argument '--chdir' cannot be used multiple times".into());
+                }
+                run.chdir = Some(option_value(parser)?);
+            }
+            Long("enable") if *topic == HelpTopic::Config => {
+                if enable.is_some() {
+                    return Err("the argument '--enable' cannot be used multiple times".into());
+                }
+                let value = option_value(parser)?;
+                enable = Some(match value.to_str() {
+                    Some("disable") => SudoMode::Disabled,
+                    Some("forceNewWindow") => SudoMode::ForceNewWindow,
+                    Some("disableInput") => SudoMode::DisableInput,
+                    Some("enable" | "normal" | "default") => SudoMode::Normal,
+                    _ => return Err(format!("{} {:?}", r::IDS_INVALIDMODE.get(), value).into()),
+                });
+            }
+            Short('p') | Short('n') if *topic == HelpTopic::Elevate => {
+                let slot = if arg == Short('p') {
+                    &mut parent
+                } else {
+                    &mut nonce
+                };
+                if slot.is_some() {
+                    return Err(
+                        "the arguments '-p' and '-n' may each be specified only once".into(),
+                    );
+                }
+                *slot = Some(option_value(parser)?.parse::<u32>()?);
+            }
+            Value(value) => {
+                if *topic == HelpTopic::Root {
+                    let subcommand = match value.to_str() {
+                        Some("run") => Some(HelpTopic::Run),
+                        Some("config") => Some(HelpTopic::Config),
+                        Some("elevate") => Some(HelpTopic::Elevate),
+                        Some("help") => Some(HelpTopic::Help),
+                        _ => None,
+                    };
+                    if let Some(subcommand) = subcommand {
+                        if subcommand == HelpTopic::Help {
+                            for name in parser.raw_args()? {
+                                *topic = match (*topic, name.to_str()) {
+                                    (HelpTopic::Root, Some("run")) => HelpTopic::Run,
+                                    (HelpTopic::Root, Some("config")) => HelpTopic::Config,
+                                    (HelpTopic::Root, Some("elevate")) => HelpTopic::Elevate,
+                                    (HelpTopic::Root, Some("help")) => HelpTopic::Help,
+                                    _ => return Err(lexopt::Error::UnexpectedArgument(name)),
+                                };
+                            }
+                            return Ok(CliAction::Help {
+                                topic: *topic,
+                                long: true,
+                                code: 0,
+                            });
+                        }
+                        *topic = subcommand;
+                        // These options are scoped to each command, not global.
+                        run = RunOptions::default();
+                        seen_modes = 0;
+                        saw_arg = false;
+                        continue;
+                    }
+                }
+                if *topic == HelpTopic::Config {
+                    return Err(lexopt::Error::UnexpectedArgument(value));
+                }
+                run.commandline.push(value);
+                run.commandline.extend(parser.raw_args()?);
+                break;
+            }
+            _ => return Err(arg.unexpected()),
+        }
     }
 
-    app = app
-        .subcommand_required(false)
-        .arg_required_else_help(true)
-        .allow_external_subcommands(true)
-        .version(env!("CARGO_PKG_VERSION"))
-        .args(run_args())
-        .subcommand(run_builder())
-        .subcommand(
-            // The elevate command is hidden, and not documented in the help text.
-            Command::new("elevate")
-                .about(r::IDS_ELEVATE_ABOUT.get())
-                .hide(true)
-                .disable_help_flag(true)
-                // .arg(arg!(-p <PARENT> "Parent process ID").required(true))
-                .arg(
-                    Arg::new("PARENT")
-                        .short('p')
-                        .help(r::IDS_ELEVATE_PARENT.get())
-                        .required(true),
-                )
-                // .arg(arg!(-n <NONCE>).required(true))
-                .arg(Arg::new("NONCE").short('n').required(true))
-                // .arg(arg!([COMMANDLINE] ... "")),
-                .arg(
-                    Arg::new("COMMANDLINE")
-                        .help(r::IDS_ELEVATE_COMMANDLINE.get())
-                        .action(ArgAction::Append)
-                        .trailing_var_arg(true),
-                ),
-        )
-        .disable_help_flag(true)
-        .disable_version_flag(true)
-        .arg(
-            Arg::new("help")
-                .action(ArgAction::Help)
-                .short('h')
-                .long("help")
-                .help(r::IDS_BASE_HELP_HELP_SHORT.get())
-                .long_help(r::IDS_BASE_HELP_HELP_LONG.get()),
-        )
-        .arg(
-            Arg::new("version")
-                .action(ArgAction::Version)
-                .short('V')
-                .long("version")
-                .help(r::IDS_BASE_VERSION_HELP.get()),
-        );
-    let config = Command::new("config").about(r::IDS_CONFIG_ABOUT.get()).arg(
-        Arg::new("enable")
-            .long("enable")
-            .value_parser([
-                "disable",
-                "enable",
-                "forceNewWindow",
-                "disableInput",
-                "normal",
-                "default",
-            ])
-            .default_missing_value_os("default")
-            .required(false)
-            .action(ArgAction::Set),
-    );
-    app = app.subcommand(config);
-
-    app
+    if !saw_arg && matches!(topic, HelpTopic::Root | HelpTopic::Run) {
+        return Ok(CliAction::Help {
+            topic: *topic,
+            long: false,
+            code: 2,
+        });
+    }
+    if let Some(conflict) = conflict {
+        return Err(conflict.into());
+    }
+    match topic {
+        HelpTopic::Config => Ok(CliAction::Config(enable)),
+        HelpTopic::Elevate => Ok(CliAction::Elevate {
+            parent: parent.ok_or(lexopt::Error::MissingValue {
+                option: Some("-p".into()),
+            })?,
+            nonce: nonce.ok_or(lexopt::Error::MissingValue {
+                option: Some("-n".into()),
+            })?,
+            commandline: run.commandline,
+        }),
+        _ => Ok(CliAction::Run(run)),
+    }
 }
 
-fn run_builder() -> Command {
-    Command::new("run")
-        .about(r::IDS_RUN_ABOUT.get())
-        .arg_required_else_help(true)
-        .args(run_args())
+fn usage(topic: HelpTopic) -> &'static str {
+    match topic {
+        HelpTopic::Root => "sudo [OPTIONS] [COMMANDLINE]... [COMMAND]",
+        HelpTopic::Run => "sudo run [OPTIONS] [COMMANDLINE]...",
+        HelpTopic::Config => "sudo config [OPTIONS]",
+        HelpTopic::Elevate => "sudo elevate -p <PARENT> -n <NONCE> [COMMANDLINE]...",
+        HelpTopic::Help => "sudo help [COMMAND]...",
+    }
 }
 
-fn run_args() -> Vec<clap::Arg> {
-    // trailing_var_arg and allow_hyphen_values are needed to allow passing in a
-    // command like `sudo netstat -ab` to work as expected, instead of having
-    // the parser attempt to treat the `-ab` as args to sudo itself.
-    let args = vec![
-        // arg!(-E --"preserve-env"  "pass the current environment variables to the command")
-        Arg::new("copyEnv")
-            .short('E')
-            .long("preserve-env")
-            .help(r::IDS_RUN_COPYENV_HELP.get())
-            .action(ArgAction::SetTrue),
-        // arg!(-N --"new-window"  "Use a new window for the command.")
-        Arg::new("newWindow")
-            .short('N')
-            .long("new-window")
-            .help(r::IDS_RUN_NEWWINDOW_HELP.get())
-            .action(ArgAction::SetTrue)
-            .group("mode"),
-        // arg!(--"disable-input"  "Disable input to the target application")
-        Arg::new("disableInput")
-            .long("disable-input")
-            .help(r::IDS_RUN_DISABLEINPUT_HELP.get())
-            .action(ArgAction::SetTrue)
-            .group("mode"),
-        // arg!(--"inline" "Run in the current terminal")
-        Arg::new("inline")
-            .long("inline")
-            .help(r::IDS_RUN_INLINE_HELP.get())
-            .action(ArgAction::SetTrue)
-            .group("mode"),
-        // arg!(--"chdir"=<DIR>  "Change the working directory to DIR before running the command.")
-        Arg::new("chdir")
-            .short('D')
-            .long("chdir")
-            .help(r::IDS_RUN_CHDIR_HELP.get())
-            .action(ArgAction::Set),
-        // arg!([COMMANDLINE] ... "Command-line to run")
-        Arg::new("COMMANDLINE")
-            .help(r::IDS_RUN_COMMANDLINE_HELP.get())
-            .action(ArgAction::Append)
-            .trailing_var_arg(true),
-    ];
+fn help_text(config: &PolicyConfig, topic: HelpTopic, long: bool) -> String {
+    if topic == HelpTopic::Root {
+        if config.policy_mode == SudoMode::Disabled {
+            return format!("{}\n", r::IDS_DISABLEDBYPOLICY.get());
+        }
+        if config.allowed_mode == SudoMode::Disabled {
+            return format!("{}\n", r::IDS_DISABLEDLONGABOUT.get());
+        }
+    }
+    let about = match topic {
+        HelpTopic::Root if long => r::IDS_LONGABOUT.get(),
+        HelpTopic::Root => r::IDS_SUDONAME.get(),
+        HelpTopic::Run => r::IDS_RUN_ABOUT.get(),
+        HelpTopic::Config => r::IDS_CONFIG_ABOUT.get(),
+        HelpTopic::Elevate => r::IDS_ELEVATE_ABOUT.get(),
+        HelpTopic::Help => "Print this message or the help of the given subcommand(s)",
+    };
+    let mut text = format!("{about}\n\nUsage: {}\n", usage(topic));
+    if topic == HelpTopic::Root {
+        _ = writeln!(text, "\nCommands:\n  run     {}\n  config  {}\n  help    Print this message or the help of the given subcommand(s)",
+            r::IDS_RUN_ABOUT.get(), r::IDS_CONFIG_ABOUT.get());
+    }
+    if matches!(topic, HelpTopic::Root | HelpTopic::Run | HelpTopic::Elevate) {
+        let description = if topic == HelpTopic::Elevate {
+            r::IDS_ELEVATE_COMMANDLINE.get()
+        } else {
+            r::IDS_RUN_COMMANDLINE_HELP.get()
+        };
+        _ = writeln!(text, "\nArguments:\n  [COMMANDLINE]...  {description}");
+    }
+    if topic == HelpTopic::Help {
+        text.push_str("\nArguments:\n  [COMMAND]...  Print help for the subcommand(s)\n");
+        return text;
+    }
+    text.push_str("\nOptions:\n");
+    if matches!(topic, HelpTopic::Root | HelpTopic::Run) {
+        for (option, description) in [
+            ("-E, --preserve-env", r::IDS_RUN_COPYENV_HELP.get()),
+            ("-N, --new-window", r::IDS_RUN_NEWWINDOW_HELP.get()),
+            ("    --disable-input", r::IDS_RUN_DISABLEINPUT_HELP.get()),
+            ("    --inline", r::IDS_RUN_INLINE_HELP.get()),
+            ("-D, --chdir <chdir>", r::IDS_RUN_CHDIR_HELP.get()),
+        ] {
+            _ = writeln!(text, "  {option:<19}  {description}");
+        }
+    }
+    match topic {
+        HelpTopic::Root => {
+            let help = if long { r::IDS_BASE_HELP_HELP_LONG.get() } else { r::IDS_BASE_HELP_HELP_SHORT.get() };
+            _ = writeln!(text, "  -h, --help           {help}\n  -V, --version        {}", r::IDS_BASE_VERSION_HELP.get());
+        }
+        HelpTopic::Config => text.push_str("      --enable <enable>  [possible values: disable, enable, forceNewWindow, disableInput, normal, default]\n"),
+        HelpTopic::Elevate => {
+            _ = writeln!(text, "  -p <PARENT>  {}\n  -n <NONCE>", r::IDS_ELEVATE_PARENT.get());
+        }
+        _ => {}
+    }
+    text
+}
 
-    // The following is a demo of how feature flags might work in the sudo
-    // codebase. You can add a `Feature_test_flag` feature to the Dev branding
-    // in cargo.toml, and then add conditionally enabled code, like so:
-    //
-    // if cfg!(feature = "Feature_test_flag") {
-    //     args.append(&mut vec![Arg::new("setHome")
-    //         .short('H')
-    //         .long("set-home")
-    //         .help(r::IDS_RUN_SETHOME_HELP.get())
-    //         .action(ArgAction::SetTrue)]);
-    // }
-    args
+fn print_help(config: &PolicyConfig, topic: HelpTopic, long: bool, code: i32) {
+    let text = help_text(config, topic, long);
+    let mode =
+        (topic == HelpTopic::Root && config.allowed_mode == SudoMode::Disabled).then(enable_vt);
+    if code == 0 {
+        print!("{text}");
+    } else {
+        eprint!("{text}");
+    }
+    if let Some(mode) = mode {
+        _ = restore_console_mode(mode);
+    }
 }
 
 fn log_modes(config: &PolicyConfig, requested_mode: Option<SudoMode>) {
@@ -239,19 +405,34 @@ fn restore_console_mode(mode: CONSOLE_MODE) -> Result<()> {
 }
 
 fn main() {
-    enable_tracing();
-
     trace_log_message(&format!("raw commandline: {:?}", env::args_os()));
 
-    let res = PolicyConfig::from_registry().and_then(|config| {
-        let matches = sudo_cli(&config).get_matches();
-        match matches.subcommand() {
-            Some(("elevate", sub_matches)) => do_elevate(&config, sub_matches),
-            Some(("run", sub_matches)) => do_run(&config, sub_matches),
-            Some(("config", sub_matches)) => do_config(&config, sub_matches),
-            _ => do_run(&config, &matches),
-        }
-    });
+    let res =
+        PolicyConfig::from_registry().and_then(|config| match parse_args(env::args_os().skip(1)) {
+            Ok(CliAction::Run(options)) => do_run(&config, options),
+            Ok(CliAction::Config(mode)) => do_config(&config, mode),
+            Ok(CliAction::Elevate {
+                parent,
+                nonce,
+                commandline,
+            }) => do_elevate(&config, parent, nonce, &commandline),
+            Ok(CliAction::Help { topic, long, code }) => {
+                print_help(&config, topic, long, code);
+                Ok(code)
+            }
+            Ok(CliAction::Version) => {
+                println!("{} {}", env!("CARGO_CRATE_NAME"), env!("CARGO_PKG_VERSION"));
+                Ok(0)
+            }
+            Err(err) => {
+                eprintln!(
+                    "error: {}\n\nUsage: {}\n\nFor more information, try 'help'.",
+                    err.error,
+                    usage(err.topic)
+                );
+                Ok(2)
+            }
+        });
 
     let code = res.unwrap_or_else(|err| {
         let hr = err.code();
@@ -279,22 +460,18 @@ fn main() {
     std::process::exit(code)
 }
 
-fn do_run(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
-    let commandline = matches
-        .get_many::<String>("COMMANDLINE")
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+fn do_run(config: &PolicyConfig, options: RunOptions) -> Result<i32> {
+    let commandline = &options.commandline;
 
     // Didn't pass a commandline or just "/?"? Print the help text and bail, BEFORE checking the mode.
     if commandline.is_empty() || (commandline.len() == 1 && commandline[0] == "/?") {
-        _ = run_builder().print_long_help();
+        print_help(config, HelpTopic::Run, true, 0);
         // return exit status 1 if the commandline was empty, 0 otherwise
         return Ok(commandline.is_empty().into());
     }
-    let requested_dir: Option<String> = matches.get_one::<String>("chdir").map(|s| s.into());
+    let requested_dir = options.chdir;
     let allowed_mode = check_enabled_or_bail(config);
-    let copy_env = matches.get_flag("copyEnv");
+    let copy_env = options.copy_env;
 
     if !can_current_user_elevate()? {
         // Bail out with an error. main(0) will then print the error message to
@@ -302,15 +479,7 @@ fn do_run(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
         return Err(ERROR_REQUEST_REFUSED.into());
     }
 
-    let requested_mode = if matches.get_flag("newWindow") {
-        Some(SudoMode::ForceNewWindow)
-    } else if matches.get_flag("disableInput") {
-        Some(SudoMode::DisableInput)
-    } else if matches.get_flag("inline") {
-        Some(SudoMode::Normal)
-    } else {
-        None
-    };
+    let requested_mode = options.mode;
 
     log_modes(config, requested_mode);
 
@@ -328,54 +497,27 @@ fn do_run(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
 
     let actual_mode = std::cmp::min(allowed_mode, requested_mode.unwrap_or(allowed_mode));
 
-    run_target(copy_env, &commandline, actual_mode, requested_dir)
+    run_target(copy_env, commandline, actual_mode, requested_dir)
 }
 
-fn do_elevate(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
+fn do_elevate(
+    config: &PolicyConfig,
+    parent_pid: u32,
+    nonce: u32,
+    commandline: &[OsString],
+) -> Result<i32> {
     _ = check_enabled_or_bail(config);
 
-    let parent_pid = matches.get_one::<String>("PARENT").unwrap().parse::<u32>();
-    let nonce = matches.get_one::<String>("NONCE").unwrap().parse::<u32>();
-
-    if let Err(e) = &parent_pid {
-        eprintln!("{} {}", r::IDS_UNKNOWNERROR.get(), e);
-        std::process::exit(-1);
-    }
     trace_log_message(&format!("elevate starting for parent: {parent_pid:?}"));
 
-    trace_log_message(&format!("matches: {matches:?}"));
-
-    let commandline = matches
-        .get_many::<String>("COMMANDLINE")
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-
-    let result = start_rpc_server(
-        parent_pid.ok().unwrap(),
-        nonce.ok().unwrap(),
-        None,
-        &commandline,
-    );
+    let result = start_rpc_server(parent_pid, nonce, None, commandline);
     trace_log_message(&format!("elevate result: {result:?}"));
     result
 }
 
-fn do_config(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
-    let mode = match matches.get_one::<String>("enable") {
+fn do_config(config: &PolicyConfig, requested_mode: Option<SudoMode>) -> Result<i32> {
+    let mode = match requested_mode {
         Some(mode) => {
-            let mode = match mode.as_str() {
-                "disable" => SudoMode::Disabled,
-                "enable" => SudoMode::Normal,
-                "forceNewWindow" => SudoMode::ForceNewWindow,
-                "disableInput" => SudoMode::DisableInput,
-                "normal" => SudoMode::Normal,
-                "default" => SudoMode::Normal,
-                _ => {
-                    eprintln!("{} {}", r::IDS_INVALIDMODE.get(), mode);
-                    std::process::exit(-1);
-                }
-            };
             try_enable_sudo(config, mode)?;
             mode
         }

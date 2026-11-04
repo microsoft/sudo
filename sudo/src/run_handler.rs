@@ -2,13 +2,13 @@ use crate::elevate_handler::spawn_target_for_request;
 use crate::helpers::*;
 use crate::logging_bindings::event_log_request;
 use crate::messages::ElevateRequest;
-use crate::rpc_bindings::Utf8Str;
+use crate::rpc_bindings::Wtf8Str;
 use crate::rpc_bindings_client::{
     rpc_client_cleanup, rpc_client_do_elevation_request, rpc_client_setup,
 };
 use crate::{r, tracing};
 use std::env;
-use std::ffi::{CString, OsStr};
+use std::ffi::{CString, OsStr, OsString};
 use std::path::Path;
 use windows::Wdk::Foundation::{NtQueryObject, ObjectBasicInformation};
 use windows::Win32::Security::Cryptography::ProcessPrng;
@@ -140,11 +140,11 @@ fn adjust_args_for_intrinsics_and_cmdlets(req: &mut ElevateRequest) -> Result<bo
         tracing::trace_cmd_builtin_found(&req.application);
 
         req.args
-            .splice(0..0, ["/c".to_string(), req.application.clone()]);
+            .splice(0..0, ["/c".into(), req.application.clone()]);
 
         // Toss this back at _exactly our parent process_. This makes sure we
         // don't try to invoke the x64 cmd.exe from a x86 cmd.exe
-        req.application = parent_process_path.to_string_lossy().to_string();
+        req.application = parent_process_path.into_os_string();
         return Ok(true);
     }
 
@@ -183,9 +183,9 @@ fn adjust_args_for_gui_exes(req: &mut ElevateRequest) {
 
 pub fn run_target(
     copy_env: bool,
-    args: &[&String],
+    args: &[OsString],
     sudo_mode: SudoMode,
-    requested_dir: Option<String>,
+    requested_dir: Option<OsString>,
 ) -> Result<i32> {
     let manually_requested_dir = requested_dir.is_some();
     let req = prepare_request(copy_env, args, sudo_mode, requested_dir)?;
@@ -204,9 +204,9 @@ pub fn run_target(
 /// convert the request to run in CMD (if we were _ourselves_ ran from CMD).
 fn prepare_request(
     copy_env: bool,
-    args: &[&String],
+    args: &[OsString],
     sudo_mode: SudoMode,
-    requested_dir: Option<String>,
+    requested_dir: Option<OsString>,
 ) -> Result<ElevateRequest> {
     let handle_indices = [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE];
 
@@ -244,8 +244,7 @@ fn prepare_request(
         }
         None => env::current_dir()?,
     }
-    .to_string_lossy()
-    .into_owned();
+    .into_os_string();
 
     // Build our request
     let mut req = ElevateRequest {
@@ -253,9 +252,13 @@ fn prepare_request(
         handles: filtered_handles,
         sudo_mode,
         application: args[0].clone(),
-        args: args.iter().skip(1).map(|arg| arg.to_string()).collect(),
+        args: args[1..].to_vec(),
         target_dir: actual_dir,
-        env_vars: copy_env.then(env_as_string).unwrap_or_default(),
+        env_vars: if copy_env {
+            env_as_string()?
+        } else {
+            OsString::new()
+        },
         event_id: GUID::new().unwrap(),
     };
 
@@ -272,7 +275,7 @@ fn prepare_request(
         // ensures that the elevated sudo will execute the same thing that was
         // found here in the unelevated context.
 
-        req.application = absolute_path(&path)?.to_string_lossy().to_string();
+        req.application = absolute_path(&path)?.into_os_string();
         adjust_args_for_gui_exes(&mut req);
     } else {
         tracing::trace_command_not_found(&req.application);
@@ -371,11 +374,17 @@ fn handoff_to_elevated(req: &ElevateRequest) -> Result<i32> {
     ));
 
     let path = env::current_exe().unwrap();
-    let target_args = format!(
-        "elevate -p {parent_pid} -n {nonce} {} {}",
-        req.application,
-        join_args(&req.args)
-    );
+    let mut target_args = vec![
+        OsString::from("elevate"),
+        OsString::from("-p"),
+        parent_pid.to_string().into(),
+        OsString::from("-n"),
+        nonce.to_string().into(),
+        OsString::from("--"),
+        req.application.clone(),
+    ];
+    target_args.extend_from_slice(&req.args);
+    let target_args = join_args(&target_args);
     tracing::trace_log_message(&format!("elevate request: '{target_args:?}'"));
     runas_admin(&path, &target_args, SW_HIDE)?;
 
@@ -456,10 +465,10 @@ fn send_request_via_rpc(req: &ElevateRequest, nonce: u32) -> Result<i32> {
         *h_real,
         &req.handles,
         req.sudo_mode,
-        Utf8Str::new(&req.application),
-        Utf8Str::new(&pack_string_list_for_rpc(&req.args)),
-        Utf8Str::new(&req.target_dir),
-        Utf8Str::new(&req.env_vars),
+        Wtf8Str::new(req.application.as_encoded_bytes()),
+        Wtf8Str::new(&pack_string_list_for_rpc(&req.args)),
+        Wtf8Str::new(req.target_dir.as_encoded_bytes()),
+        Wtf8Str::new(req.env_vars.as_encoded_bytes()),
         req.event_id,
         &mut *child_handle,
     );
@@ -496,7 +505,7 @@ fn send_request_via_rpc(req: &ElevateRequest, nonce: u32) -> Result<i32> {
     // launched.
     if req.sudo_mode == SudoMode::ForceNewWindow {
         let translated_msg = r::IDS_LAUNCHEDNEWWINDOW.get();
-        let replaced = translated_msg.replace("{0}", &req.application);
+        let replaced = translated_msg.replace("{0}", &req.application.to_string_lossy());
         println!("{}", replaced);
         Ok(0)
     } else {
@@ -541,27 +550,20 @@ mod tests {
 
     #[test]
     fn test_cmd_is_cui() {
-        let app_name = "cmd".to_string();
-        let req = prepare_request(false, &[&app_name], SudoMode::Normal, None).unwrap();
+        let req = prepare_request(false, &["cmd".into()], SudoMode::Normal, None).unwrap();
         assert_eq!(req.sudo_mode, SudoMode::Normal);
     }
     #[test]
     fn test_notepad_is_gui() {
-        let req =
-            prepare_request(false, &[&("notepad".to_string())], SudoMode::Normal, None).unwrap();
+        let req = prepare_request(false, &["notepad".into()], SudoMode::Normal, None).unwrap();
         // If we did in fact find notepad, then we should have set the mode to
         // ForceNewWindow, since it's a GUI app.
         assert_eq!(req.sudo_mode, SudoMode::ForceNewWindow);
 
         // I found in the past that `notepad.exe` worked, while `notepad`
         // didn't. Just make sure they both do, for sanity's sake.
-        let req_exe = prepare_request(
-            false,
-            &[&("notepad.exe".to_string())],
-            SudoMode::Normal,
-            None,
-        )
-        .unwrap();
+        let req_exe =
+            prepare_request(false, &["notepad.exe".into()], SudoMode::Normal, None).unwrap();
         assert_eq!(req_exe.sudo_mode, SudoMode::ForceNewWindow);
     }
 }

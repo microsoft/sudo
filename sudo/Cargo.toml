@@ -19,7 +19,7 @@ which = { workspace = true }
 
 [dependencies]
 
-clap = { workspace = true, default-features = false, features = ["color", "help", "usage", "error-context"] }
+lexopt = { workspace = true }
 which = { workspace = true }
 
 sudo_events = { path = "../sudo_events" }

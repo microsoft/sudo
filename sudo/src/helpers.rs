@@ -1,4 +1,4 @@
-use crate::rpc_bindings::Utf8Str;
+use crate::rpc_bindings::Wtf8Str;
 use crate::trace_log_message;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -199,7 +199,7 @@ pub fn get_current_user() -> Result<HSTRING> {
     }
 }
 
-pub fn is_cmd_intrinsic(application: &str) -> bool {
+pub fn is_cmd_intrinsic(application: &OsStr) -> bool {
     // List from https://ss64.com/nt/syntax-internal.html
     //
     // The following are internal commands to cmd.exe
@@ -213,60 +213,31 @@ pub fn is_cmd_intrinsic(application: &str) -> bool {
     // to make sure it works.
     //
     // We also want to makke sure it's case insensitive
-    matches!(
-        application.to_uppercase().as_str(),
-        "ASSOC"
-            | "BREAK"
-            | "CALL"
-            | "CD"
-            | "CHDIR"
-            | "CLS"
-            | "COLOR"
-            | "COPY"
-            | "DATE"
-            | "DEL"
-            | "DIR"
-            | "DPATH"
-            | "ECHO"
-            | "ENDLOCAL"
-            | "ERASE"
-            | "EXIT"
-            | "FOR"
-            | "FTYPE"
-            | "GOTO"
-            | "IF"
-            | "KEYS"
-            | "MD"
-            | "MKDIR"
-            | "MKLINK"
-            | "MOVE"
-            | "PATH"
-            | "PAUSE"
-            | "POPD"
-            | "PROMPT"
-            | "PUSHD"
-            | "REM"
-            | "REN"
-            | "RENAME"
-            | "RD"
-            | "RMDIR"
-            | "SET"
-            | "SETLOCAL"
-            | "SHIFT"
-            | "START"
-            | "TIME"
-            | "TITLE"
-            | "TYPE"
-            | "VER"
-            | "VERIFY"
-            | "VOL"
-    )
+    const TERMS: &[&str] = &[
+        "ASSOC", "BREAK", "CALL", "CD", "CHDIR", "CLS", "COLOR", "COPY", "DATE", "DEL", "DIR",
+        "DPATH", "ECHO", "ENDLOCAL", "ERASE", "EXIT", "FOR", "FTYPE", "GOTO", "IF", "KEYS", "MD",
+        "MKDIR", "MKLINK", "MOVE", "PATH", "PAUSE", "POPD", "PROMPT", "PUSHD", "RD", "REM", "REN",
+        "RENAME", "RMDIR", "SET", "SETLOCAL", "SHIFT", "START", "TIME", "TITLE", "TYPE", "VER",
+        "VERIFY", "VOL",
+    ];
+
+    for term in TERMS {
+        if application.eq_ignore_ascii_case(term) {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// Returns the current environment as a null-delimited string.
-pub fn env_as_string() -> String {
+pub fn env_as_string() -> Result<OsString> {
     unsafe {
-        let beg = GetEnvironmentStringsW().0 as *const _;
+        let beg = GetEnvironmentStringsW().0 as *const u16;
+        if beg.is_null() {
+            return Err(Error::from_thread());
+        }
+
         let mut end = beg;
 
         // Try to figure out the end of the double-null terminated env block.
@@ -288,30 +259,38 @@ pub fn env_as_string() -> String {
         let len = usize::try_from(end.offset_from(beg))
             .unwrap()
             .saturating_sub(1);
-        let str = String::from_utf16_lossy(from_raw_parts(beg, len));
+        let str = OsString::from_wide(from_raw_parts(beg, len));
         let _ = FreeEnvironmentStringsW(PCWSTR(beg));
-        str
+        Ok(str)
     }
 }
 
 /// Splits a null-delimited environment string into key/value pairs.
-pub fn env_from_raw_bytes(env_string: &str) -> impl Iterator<Item = (&OsStr, &OsStr)> {
-    env_string.split('\0').filter_map(|s| {
-        // In the early days the cmd.exe devs added env variables that start with "=".
-        // They look like "=C:=C:\foo\bar" and are used to track per-drive CWDs across cmd child-processes.
-        // See here for more information: https://devblogs.microsoft.com/oldnewthing/20100506-00/?p=14133
-        // The get() call simultaneously takes care of rejecting empty strings, which is neat.
-        let idx = s.get(1..)?.find('=')?;
-        // The `.get(1..)` call will slice off 1 character from the start of the string and thus from the `idx` value.
-        // This means that when we want to split the string into two parts `[0,idx)` and `(idx,length)`
-        // (= `[idx+1,length)` = without the "=" character) then we need to add +1 to both sides now.
-        Some((OsStr::new(&s[..idx + 1]), OsStr::new(&s[idx + 2..])))
-    })
+pub fn env_from_raw_bytes(env_string: &OsStr) -> impl Iterator<Item = (&OsStr, &OsStr)> {
+    env_string
+        .as_encoded_bytes()
+        .split(|&c| c == 0)
+        .filter_map(|s| {
+            // In the early days the cmd.exe devs added env variables that start with "=".
+            // They look like "=C:=C:\foo\bar" and are used to track per-drive CWDs across cmd child-processes.
+            // See here for more information: https://devblogs.microsoft.com/oldnewthing/20100506-00/?p=14133
+            // The get() call simultaneously takes care of rejecting empty strings, which is neat.
+            let idx = s.get(1..)?.iter().position(|&c| c == b'=')?;
+            // The `.get(1..)` call will slice off 1 character from the start of the string and thus from the `idx` value.
+            // This means that when we want to split the string into two parts `[0,idx)` and `(idx,length)`
+            // (= `[idx+1,length)` = without the "=" character) then we need to add +1 to both sides now.
+            Some(unsafe {
+                (
+                    OsStr::from_encoded_bytes_unchecked(&s[..idx + 1]),
+                    OsStr::from_encoded_bytes_unchecked(&s[idx + 2..]),
+                )
+            })
+        })
 }
 
 /// Windows does not actually support distinct command line parameters. They're all just given as a single string.
 /// We can't just use `.join(" ")` either, because this breaks arguments with whitespaces. This function handles these details.
-pub fn join_args<T: AsRef<str>>(args: &[T]) -> String {
+pub fn join_args<T: AsRef<OsStr>>(args: &[T]) -> OsString {
     // We estimate 3*args.len() overhead per arg: 2 quotes and 1 whitespace.
     let expected_len = args
         .len()
@@ -334,14 +313,14 @@ pub fn join_args<T: AsRef<str>>(args: &[T]) -> String {
             accumulator.push(b' ');
         }
 
-        let str = arg.as_ref();
-        let quote = str.is_empty() || str.contains(' ') || str.contains('\t');
+        let str = arg.as_ref().as_encoded_bytes();
+        let quote = str.is_empty() || str.contains(&b' ') || str.contains(&b'\t');
         if quote {
             accumulator.push(b'"');
         }
 
         let mut backslashes: usize = 0;
-        for &x in str.as_bytes() {
+        for &x in str {
             if x == b'\\' {
                 backslashes += 1;
             } else {
@@ -359,12 +338,12 @@ pub fn join_args<T: AsRef<str>>(args: &[T]) -> String {
         }
     }
 
-    // Assuming that our `args` slice was UTF8 the accumulator can't suddenly contain non-UTF8.
-    unsafe { String::from_utf8_unchecked(accumulator) }
+    // SAFETY: Only ASCII quoting/escaping is inserted into the original encoded bytes.
+    unsafe { OsString::from_encoded_bytes_unchecked(accumulator) }
 }
 
 /// Joins a list of strings into a single string, each of which is null-terminated (including the final one).
-pub fn pack_string_list_for_rpc<T: AsRef<str>>(args: &[T]) -> String {
+pub fn pack_string_list_for_rpc<T: AsRef<OsStr>>(args: &[T]) -> Vec<u8> {
     let expected_len = args
         .iter()
         .map(|s| s.as_ref().len())
@@ -374,21 +353,26 @@ pub fn pack_string_list_for_rpc<T: AsRef<str>>(args: &[T]) -> String {
         .try_fold(args.len(), usize::checked_add)
         .unwrap();
 
-    let mut accumulator = String::with_capacity(expected_len);
+    let mut accumulator = Vec::with_capacity(expected_len);
     for arg in args {
-        accumulator.push_str(arg.as_ref());
-        accumulator.push('\0');
+        accumulator.extend_from_slice(arg.as_ref().as_encoded_bytes());
+        accumulator.push(0);
     }
     accumulator
 }
 
 /// Splits a string generated by `pack_args` up again.
-pub fn unpack_string_list_from_rpc(args: Utf8Str) -> Result<Vec<String>> {
-    Ok(args
-        .as_str()?
-        .split_terminator('\0')
-        .map(String::from)
-        .collect())
+pub fn unpack_string_list_from_rpc(args: Wtf8Str) -> Result<Vec<OsString>> {
+    let args = args.as_slice()?;
+    if args.is_empty() {
+        Ok(Vec::new())
+    } else {
+        args.strip_suffix(&[0])
+            .unwrap_or(args)
+            .split(|&c| c == 0)
+            .map(|arg| Wtf8Str::new(arg).to_os_string())
+            .collect()
+    }
 }
 
 pub fn reg_get_u32(key: HKEY, subkey: PCWSTR, value: PCWSTR) -> Result<Option<u32>> {
@@ -592,7 +576,7 @@ mod tests {
     #[test]
     fn test_env_from_raw_string() {
         let raw_string = "foo=bar\0baz=qux\0\0";
-        let env_map: Vec<_> = env_from_raw_bytes(raw_string).collect();
+        let env_map: Vec<_> = env_from_raw_bytes(OsStr::new(raw_string)).collect();
         assert_eq!(env_map.len(), 2);
         assert_eq!(env_map[0], (OsStr::new("foo"), OsStr::new("bar")));
         assert_eq!(env_map[1], (OsStr::new("baz"), OsStr::new("qux")));
@@ -601,7 +585,7 @@ mod tests {
     #[test]
     fn test_env_with_drive_vars() {
         let raw_string = "foo=bar\0=D:=D:\\qux\0\0";
-        let env_map: Vec<_> = env_from_raw_bytes(raw_string).collect();
+        let env_map: Vec<_> = env_from_raw_bytes(OsStr::new(raw_string)).collect();
         assert_eq!(env_map.len(), 2);
         assert_eq!(env_map[0], (OsStr::new("foo"), OsStr::new("bar")));
         assert_eq!(env_map[1], (OsStr::new("=D:"), OsStr::new("D:\\qux")));
@@ -617,9 +601,9 @@ mod tests {
 
     #[test]
     fn test_pack_args() {
-        assert_eq!(pack_string_list_for_rpc(&[""; 0]), "");
-        assert_eq!(pack_string_list_for_rpc(&["foo"]), "foo\0");
-        assert_eq!(pack_string_list_for_rpc(&["foo", "bar"]), "foo\0bar\0");
+        assert_eq!(pack_string_list_for_rpc(&[""; 0]), b"");
+        assert_eq!(pack_string_list_for_rpc(&["foo"]), b"foo\0");
+        assert_eq!(pack_string_list_for_rpc(&["foo", "bar"]), b"foo\0bar\0");
     }
 
     #[test]

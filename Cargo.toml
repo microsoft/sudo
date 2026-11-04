@@ -9,7 +9,7 @@ members = [
 
 [workspace.dependencies]
 cc = "1.2"
-clap = { version = "4.4", default-features = false, features = ["std"] }
+lexopt = "0.3"
 embed-manifest = "1.4"
 which = "8.0"
 win_etw_provider = "0.1"

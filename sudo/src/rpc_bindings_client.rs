@@ -1,5 +1,5 @@
 use crate::helpers::SudoMode;
-use crate::rpc_bindings::Utf8Str;
+use crate::rpc_bindings::Wtf8Str;
 use std::ffi::{c_void, CStr};
 use windows::core::{s, GUID, HRESULT, PCSTR, PSTR};
 use windows::Win32::Foundation::HANDLE;
@@ -18,10 +18,10 @@ extern "C" {
         pipe_handles: *const [HANDLE; 3], // in, out, err
         file_handles: *const [HANDLE; 3], // in, out, err
         sudo_mode: u32,
-        application: Utf8Str,
-        args: Utf8Str,
-        target_dir: Utf8Str,
-        env_vars: Utf8Str,
+        application: Wtf8Str,
+        args: Wtf8Str,
+        target_dir: Wtf8Str,
+        env_vars: Wtf8Str,
         event_id: GUID,
         child: *mut HANDLE,
     ) -> HRESULT;
@@ -73,10 +73,10 @@ pub fn rpc_client_do_elevation_request(
     parent_handle: HANDLE,
     handles: &[HANDLE; 3], // in, out, err
     sudo_mode: SudoMode,
-    application: Utf8Str,
-    args: Utf8Str,
-    target_dir: Utf8Str,
-    env_vars: Utf8Str,
+    application: Wtf8Str,
+    args: Wtf8Str,
+    target_dir: Wtf8Str,
+    env_vars: Wtf8Str,
     event_id: GUID,
     child: *mut HANDLE,
 ) -> HRESULT {

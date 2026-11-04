@@ -3,7 +3,7 @@ use crate::logging_bindings::event_log_request;
 use crate::messages::ElevateRequest;
 use crate::rpc_bindings_server::rpc_server_setup;
 use crate::tracing;
-use std::ffi::CString;
+use std::ffi::{CString, OsString};
 use std::os::windows::io::{FromRawHandle, IntoRawHandle};
 use std::os::windows::process::CommandExt;
 use std::process::Stdio;
@@ -28,7 +28,7 @@ fn handle_to_stdio(h: HANDLE) -> Stdio {
 
 /// Prepare the target process, spawn it, and hand back the Child process. This will take care of setting up the handles for redirected input/output, and setting the environment variables.
 pub fn spawn_target_for_request(request: &ElevateRequest) -> Result<std::process::Child> {
-    tracing::trace_log_message(&format!("Spawning: {}...", request.application));
+    tracing::trace_log_message(&format!("Spawning: {:?}...", request.application));
 
     let mut command_args = std::process::Command::new(request.application.clone());
 
@@ -156,7 +156,7 @@ pub fn start_rpc_server(
     parent_pid: u32,
     nonce: u32,
     _caller_sid: Option<&String>,
-    _args: &[&String],
+    _args: &[OsString],
 ) -> Result<i32> {
     // TODO:48520593 In rust_handle_elevation_request, validate that the parent
     // process handle is the same one that we opened here.

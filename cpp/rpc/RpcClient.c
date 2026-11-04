@@ -24,10 +24,10 @@ HRESULT seh_wrapper_client_DoElevationRequest(
     const HANDLE* pipe_handles,
     const HANDLE* file_handles,
     DWORD sudo_mode,
-    UTF8_STRING application,
-    UTF8_STRING args,
-    UTF8_STRING target_dir,
-    UTF8_STRING env_vars,
+    WTF8_STRING application,
+    WTF8_STRING args,
+    WTF8_STRING target_dir,
+    WTF8_STRING env_vars,
     GUID eventId,
     HANDLE* child)
 {

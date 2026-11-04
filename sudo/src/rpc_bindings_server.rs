@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::{
-    elevate_handler::handle_elevation_request, messages::ElevateRequest, rpc_bindings::Utf8Str,
+    elevate_handler::handle_elevation_request, messages::ElevateRequest, rpc_bindings::Wtf8Str,
 };
 use std::ffi::{c_void, CStr};
 use std::mem::{size_of, take};
@@ -185,10 +185,10 @@ pub extern "C" fn server_DoElevationRequest(
     pipe_handles: *const [HANDLE; 3], // in, out, err
     file_handles: *const [HANDLE; 3], // in, out, err
     sudo_mode: u32,
-    application: Utf8Str,
-    args: Utf8Str,
-    target_dir: Utf8Str,
-    env_vars: Utf8Str,
+    application: Wtf8Str,
+    args: Wtf8Str,
+    target_dir: Wtf8Str,
+    env_vars: Wtf8Str,
     event_id: GUID,
     child: *mut HANDLE,
 ) -> HRESULT {
@@ -240,10 +240,10 @@ fn wrap_elevate_request(
     pipe_handles: *const [HANDLE; 3], // in, out, err
     file_handles: *const [HANDLE; 3], // in, out, err
     sudo_mode: u32,
-    application: Utf8Str,
-    args: Utf8Str,
-    target_dir: Utf8Str,
-    env_vars: Utf8Str,
+    application: Wtf8Str,
+    args: Wtf8Str,
+    target_dir: Wtf8Str,
+    env_vars: Wtf8Str,
     event_id: GUID,
 ) -> Result<ElevateRequest> {
     let parent_pid = unsafe { GetProcessId(parent_handle) };
@@ -263,10 +263,10 @@ fn wrap_elevate_request(
         parent_pid,
         handles,
         sudo_mode: sudo_mode.try_into()?,
-        application: application.as_str()?.to_owned(),
+        application: application.to_os_string()?,
         args: unpack_string_list_from_rpc(args)?,
-        target_dir: target_dir.as_str()?.to_owned(),
-        env_vars: env_vars.as_str()?.to_owned(),
+        target_dir: target_dir.to_os_string()?,
+        env_vars: env_vars.to_os_string()?,
         event_id,
     })
 }

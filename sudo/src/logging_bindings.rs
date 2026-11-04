@@ -1,7 +1,7 @@
 use crate::helpers::join_args;
 use crate::messages::ElevateRequest;
 use std::env;
-use std::ffi::CString;
+use std::ffi::OsStr;
 use std::mem::size_of_val;
 use std::ops::{Deref, DerefMut};
 use std::ptr::addr_of;
@@ -43,10 +43,24 @@ impl DerefMut for OwnedReghandle {
     }
 }
 
-fn str_to_cstr_vec<T: Into<Vec<u8>>>(s: T) -> Vec<u8> {
-    CString::new(s)
-        .expect("strings should not have nulls")
-        .into_bytes_with_nul()
+trait AsCStrVec {
+    fn as_cstr_vec(&self) -> Vec<u8>;
+}
+
+impl AsCStrVec for str {
+    fn as_cstr_vec(&self) -> Vec<u8> {
+        let len = self.find('\0').unwrap_or(self.len());
+        let mut vec = Vec::with_capacity(len + 1);
+        vec.extend_from_slice(&self.as_bytes()[..len]);
+        vec.push(0);
+        vec
+    }
+}
+
+impl AsCStrVec for OsStr {
+    fn as_cstr_vec(&self) -> Vec<u8> {
+        self.to_string_lossy().as_cstr_vec()
+    }
 }
 
 fn create_descriptor<T, U>(ptr: *const T, len: U) -> EVENT_DATA_DESCRIPTOR
@@ -75,23 +89,20 @@ pub fn event_log_request(is_client: bool, req: &ElevateRequest) {
     // so release builds should usually ignore the error code returned by EventRegister.
     unsafe { EventRegister(&PROVIDER_GUID, None, None, &mut *registration_handle) };
 
-    let application = str_to_cstr_vec(req.application.as_str());
+    let application = req.application.as_cstr_vec();
     let args_len = req.args.len() as u32;
-    let args: Vec<_> = req
-        .args
-        .iter()
-        .map(|arg| str_to_cstr_vec(arg.as_str()))
-        .collect();
-    let cwd = str_to_cstr_vec(req.target_dir.as_str());
+    let args: Vec<_> = req.args.iter().map(|arg| arg.as_cstr_vec()).collect();
+    let cwd = req.target_dir.as_cstr_vec();
     let mode = req.sudo_mode as u32;
     let inherit_env = !req.env_vars.is_empty();
     let redirected = req.handles.iter().any(|h| !h.is_invalid());
-    let commandline = str_to_cstr_vec(format!(
+    let commandline = format!(
         "{} {} {}",
         env::current_exe().unwrap().display(),
-        req.application,
-        join_args(&req.args)
-    ));
+        join_args(std::slice::from_ref(&req.application)).display(),
+        join_args(&req.args).display()
+    )
+    .as_cstr_vec();
     let request_id = req.event_id;
 
     let mut descriptors = Vec::with_capacity(9 + args.len());
