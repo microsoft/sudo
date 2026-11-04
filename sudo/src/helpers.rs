@@ -11,7 +11,9 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 use windows::Win32::Storage::FileSystem::GetFullPathNameW;
 use windows::Win32::System::Diagnostics::Debug::{IMAGE_NT_HEADERS32, IMAGE_SUBSYSTEM};
 use windows::Win32::System::Environment::{FreeEnvironmentStringsW, GetEnvironmentStringsW};
-use windows::Win32::System::Rpc::RPC_STATUS;
+use windows::Win32::System::Registry::{
+    RegGetValueW, RegSetKeyValueW, HKEY, HKEY_LOCAL_MACHINE, REG_DWORD, RRF_RT_REG_DWORD,
+};
 use windows::Win32::System::SystemServices::{
     IMAGE_DOS_HEADER, IMAGE_DOS_SIGNATURE, IMAGE_NT_SIGNATURE, SE_TOKEN_USER, SE_TOKEN_USER_1,
 };
@@ -20,10 +22,6 @@ use windows::{
     Win32::System::Console::*, Win32::System::Threading::*,
 };
 
-// https://github.com/microsoft/win32metadata/issues/1857
-pub const RPC_S_ACCESS_DENIED: RPC_STATUS = RPC_STATUS(ERROR_ACCESS_DENIED.0 as i32);
-
-pub const E_FILENOTFOUND: HRESULT = ERROR_FILE_NOT_FOUND.to_hresult();
 pub const E_CANCELLED: HRESULT = ERROR_CANCELLED.to_hresult();
 pub const MSG_DIR_BAD_COMMAND_OR_FILE: WIN32_ERROR = WIN32_ERROR(9009);
 pub const E_DIR_BAD_COMMAND_OR_FILE: HRESULT = MSG_DIR_BAD_COMMAND_OR_FILE.to_hresult();
@@ -82,7 +80,7 @@ impl<T> Drop for OwnedLocalAlloc<T> {
         unsafe {
             let ptr: HLOCAL = std::mem::transmute_copy(self);
             if !ptr.0.is_null() {
-                LocalFree(ptr);
+                LocalFree(Some(ptr));
             }
         }
     }
@@ -197,7 +195,7 @@ pub fn get_current_user() -> Result<HSTRING> {
         let mut str_sid = OwnedLocalAlloc::default();
         ConvertSidToStringSidW(PSID(&user.Sid as *const _ as _), &mut *str_sid)?;
 
-        str_sid.to_hstring()
+        Ok(str_sid.to_hstring())
     }
 }
 
@@ -393,63 +391,89 @@ pub fn unpack_string_list_from_rpc(args: Utf8Str) -> Result<Vec<String>> {
         .collect())
 }
 
-pub trait ConfigProvider {
-    fn get_setting_mode(&self) -> Result<u32>;
-    fn get_policy_mode(&self) -> Result<u32>;
-}
-
-#[derive(Default)]
-pub struct RegistryConfigProvider;
-impl ConfigProvider for RegistryConfigProvider {
-    fn get_setting_mode(&self) -> Result<u32> {
-        windows_registry::LOCAL_MACHINE
-            .open("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Sudo")
-            .and_then(|key| key.get_u32("Enabled"))
-    }
-    fn get_policy_mode(&self) -> Result<u32> {
-        windows_registry::LOCAL_MACHINE
-            .open("SOFTWARE\\Policies\\Microsoft\\Windows\\Sudo")
-            .and_then(|key| key.get_u32("Enabled"))
-    }
-}
-
-/// Get the current mode allowed by policy.
-/// * If the policy isn't set (we fail to read the reg key), we'll return Ok(3)
-///   (to indicate that all modes up to inline are allowed).
-/// * If the policy is set, we'll return the value from the policy.
-/// * If we fail to read the policy for any other reason, we'll return an error
-///   (which should be treated as "disabled by policy")
-pub fn get_allowed_mode_from_policy(config: &impl ConfigProvider) -> Result<SudoMode> {
-    match config.get_policy_mode() {
-        Ok(v) => v.min(3).try_into(),
-        // This is okay! No policy state really means that it's _not_ disabled by policy.
-        Err(e) if e.code() == E_FILENOTFOUND => Ok(SudoMode::Normal),
-        Err(e) => Err(e),
+pub fn reg_get_u32(key: HKEY, subkey: PCWSTR, value: PCWSTR) -> Result<Option<u32>> {
+    let mut data = 0u32;
+    let mut size = size_of_val(&data) as _;
+    let res = unsafe {
+        RegGetValueW(
+            key,
+            subkey,
+            value,
+            RRF_RT_REG_DWORD,
+            None,
+            Some(&raw mut data as _),
+            Some(&raw mut size),
+        )
+    };
+    if res.is_err() {
+        if res == ERROR_FILE_NOT_FOUND {
+            Ok(None)
+        } else {
+            Err(res.into())
+        }
+    } else {
+        Ok(Some(data))
     }
 }
 
-/// Get the current setting mode from the registry. If the setting isn't there,
-/// we're disabled. If we fail to read the setting, we're disabled. Errors
-/// should be treated as disabled.
-pub fn get_setting_mode(config: &impl ConfigProvider) -> Result<SudoMode> {
-    match config.get_setting_mode() {
-        Ok(v) => v.min(3).try_into(),
-        Err(e) if e.code() == E_FILENOTFOUND => Ok(SudoMode::Disabled),
-        Err(e) => Err(e),
-    }
+pub fn reg_set_u32(key: HKEY, subkey: PCWSTR, value: PCWSTR, data: u32) -> Result<()> {
+    unsafe {
+        RegSetKeyValueW(
+            key,
+            subkey,
+            value,
+            REG_DWORD.0,
+            Some(&raw const data as _),
+            size_of_val(&data) as _,
+        )
+        .ok()?
+    };
+    Ok(())
 }
 
-pub fn get_allowed_mode(config: &impl ConfigProvider) -> Result<SudoMode> {
-    let allowed_mode_from_policy = get_allowed_mode_from_policy(config)?;
-    if allowed_mode_from_policy == SudoMode::Disabled {
-        return Err(E_ACCESS_DISABLED_BY_POLICY.into());
-    }
-    let setting_mode = get_setting_mode(config).unwrap_or(SudoMode::Disabled);
+pub struct PolicyConfig {
+    pub policy_mode: SudoMode,
+    pub setting_mode: SudoMode,
+    pub allowed_mode: SudoMode,
+}
 
-    SudoMode::try_from(std::cmp::min::<u32>(
-        allowed_mode_from_policy.into(),
-        setting_mode.into(),
-    ))
+impl PolicyConfig {
+    pub fn from_registry() -> Result<Self> {
+        // Get the current mode allowed by policy.
+        // * If the policy isn't set (we fail to read the reg key), we'll return Ok(3)
+        //   (to indicate that all modes up to inline are allowed).
+        // * If the policy is set, we'll return the value from the policy.
+        // * If we fail to read the policy for any other reason, we'll return an error
+        //   (which should be treated as "disabled by policy")
+        let policy_mode = reg_get_u32(
+            HKEY_LOCAL_MACHINE,
+            w!(r"SOFTWARE\Policies\Microsoft\Windows\Sudo"),
+            w!("Enabled"),
+        )?;
+
+        // Get the current setting mode from the registry. If the setting isn't there,
+        // we're disabled. If we fail to read the setting, we're disabled. Errors
+        // should be treated as disabled.
+        let setting_mode = reg_get_u32(
+            HKEY_LOCAL_MACHINE,
+            w!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo"),
+            w!("Enabled"),
+        )?;
+
+        let policy_mode = policy_mode
+            .and_then(|v| v.try_into().ok())
+            .unwrap_or(SudoMode::Normal);
+
+        let setting_mode = setting_mode
+            .and_then(|v| v.try_into().ok())
+            .unwrap_or(SudoMode::Disabled);
+
+        Ok(Self {
+            policy_mode,
+            setting_mode,
+            allowed_mode: policy_mode.min(setting_mode),
+        })
+    }
 }
 
 pub fn get_process_path_from_handle(process: HANDLE) -> Result<PathBuf> {
@@ -521,7 +545,7 @@ pub fn absolute_path(path: &Path) -> Result<PathBuf> {
         // GetFullPathNameW will return the required buffer size if the buffer is too small.
         let res = unsafe { GetFullPathNameW(&lpfilename, Some(buffer.as_mut_slice()), None) };
         match res as usize {
-            0 => return Err(Error::from_win32()), // returns GLE
+            0 => return Err(Error::from_thread()), // returns GLE
             len if len <= buffer.len() => {
                 return Ok(PathBuf::from(OsString::from_wide(&buffer[..len])))
             }
@@ -633,102 +657,6 @@ mod tests {
         assert_eq!(
             Ok(IMAGE_SUBSYSTEM_WINDOWS_GUI),
             get_exe_subsystem(r"C:\Windows\notepad.exe")
-        );
-    }
-
-    /// config tests
-    struct TestConfigProvider {
-        setting_mode: Result<u32>,
-        policy_mode: Result<u32>,
-    }
-
-    impl ConfigProvider for TestConfigProvider {
-        fn get_setting_mode(&self) -> Result<u32> {
-            self.setting_mode.clone()
-        }
-        fn get_policy_mode(&self) -> Result<u32> {
-            self.policy_mode.clone()
-        }
-    }
-
-    #[test]
-    fn test_get_allowed_mode_from_policy() {
-        // no setting at all
-        let config = TestConfigProvider {
-            setting_mode: Err(E_FILENOTFOUND.into()),
-            policy_mode: Err(E_FILENOTFOUND.into()),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Disabled);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::Normal
-        );
-        assert_eq!(get_allowed_mode(&config).unwrap(), SudoMode::Disabled);
-
-        // Setting set to 3 (normal), but policy only allows 2 (disable input)
-        let config = TestConfigProvider {
-            setting_mode: Ok(3),
-            policy_mode: Ok(2),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Normal);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::DisableInput
-        );
-        assert_eq!(get_allowed_mode(&config).unwrap(), SudoMode::DisableInput);
-
-        // policy is out of range
-        let config = TestConfigProvider {
-            setting_mode: Ok(3),
-            policy_mode: Ok(4),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Normal);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::Normal
-        );
-        assert_eq!(get_allowed_mode(&config).unwrap(), SudoMode::Normal);
-
-        // entirely disabled by policy
-        let config = TestConfigProvider {
-            setting_mode: Ok(3),
-            policy_mode: Ok(0),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Normal);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::Disabled
-        );
-        assert_eq!(
-            get_allowed_mode(&config),
-            Err(E_ACCESS_DISABLED_BY_POLICY.into())
-        );
-
-        // No policy config found
-        let config = TestConfigProvider {
-            setting_mode: Ok(3),
-            policy_mode: Err(E_FILENOTFOUND.into()),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Normal);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::Normal
-        );
-        assert_eq!(get_allowed_mode(&config).unwrap(), SudoMode::Normal);
-
-        // not set, but disabled by policy
-        let config = TestConfigProvider {
-            setting_mode: Err(E_FILENOTFOUND.into()),
-            policy_mode: Ok(0),
-        };
-        assert_eq!(get_setting_mode(&config).unwrap(), SudoMode::Disabled);
-        assert_eq!(
-            get_allowed_mode_from_policy(&config).unwrap(),
-            SudoMode::Disabled
-        );
-        assert_eq!(
-            get_allowed_mode(&config),
-            Err(E_ACCESS_DISABLED_BY_POLICY.into())
         );
     }
 }

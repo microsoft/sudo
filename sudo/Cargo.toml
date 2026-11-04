@@ -12,45 +12,45 @@ test = true
 name = "sudo"
 
 [build-dependencies]
-winres.workspace = true
-cc.workspace = true
-embed-manifest.workspace = true
+winres = { workspace = true }
+cc = { workspace = true }
+embed-manifest = { workspace = true }
 which = { workspace = true }
 
 [dependencies]
 
 clap = { workspace = true, default-features = false, features = ["color", "help", "usage", "error-context"] }
 which = { workspace = true }
-windows-registry = { workspace = true }
 
 sudo_events = { path = "../sudo_events" }
 win32resources = { path = "../win32resources" }
-
-[dependencies.windows]
-workspace = true
-features = [
-    "Wdk_Foundation",
-    "Wdk_System_Threading",
-    "Win32_Foundation",
-    "Win32_Globalization",
-    "Win32_Security",
-    "Win32_Security_Authorization",
-    "Win32_Storage_FileSystem",
-    "Win32_System_Console",
-    "Win32_System_Diagnostics_Debug",
-    "Win32_System_Diagnostics_Etw",
-    "Win32_System_Environment",
-    "Win32_System_Kernel",
-    "Win32_System_Memory",
-    "Win32_System_Registry",
-    "Win32_System_Rpc",
-    "Win32_System_SystemInformation",
-    "Win32_System_SystemServices",
-    "Win32_System_Threading",
-    "Win32_System_WindowsProgramming",
-    "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging",
-]
+windows = {
+    workspace = true,
+    features = [
+        "Wdk_Foundation",
+        "Wdk_System_Threading",
+        "Win32_Foundation",
+        "Win32_Globalization",
+        "Win32_Security_Authorization",
+        "Win32_Security_Cryptography",
+        "Win32_Security",
+        "Win32_Storage_FileSystem",
+        "Win32_System_Console",
+        "Win32_System_Diagnostics_Debug",
+        "Win32_System_Diagnostics_Etw",
+        "Win32_System_Environment",
+        "Win32_System_Kernel",
+        "Win32_System_Memory",
+        "Win32_System_Registry",
+        "Win32_System_Rpc",
+        "Win32_System_SystemInformation",
+        "Win32_System_SystemServices",
+        "Win32_System_Threading",
+        "Win32_System_WindowsProgramming",
+        "Win32_UI_Shell",
+        "Win32_UI_WindowsAndMessaging",
+    ],
+}
 
 [features]
 # We attempt to use feature flags in a similar way to how the rest of the

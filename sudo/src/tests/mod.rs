@@ -1,8 +1,9 @@
 #[allow(clippy::module_inception)]
 #[cfg(test)]
 mod tests {
-    use crate::helpers::*;
-    use windows::Win32::Foundation::*;
+    use windows::Win32::Foundation::ERROR_INVALID_PARAMETER;
+
+    use crate::helpers::{generate_rpc_endpoint_name, SudoMode};
 
     #[test]
     fn test_try_from_u32_for_sudo_mode() {

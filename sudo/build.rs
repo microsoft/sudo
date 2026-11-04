@@ -26,7 +26,7 @@ fn get_sdk_path() -> Option<String> {
     // the path to the appropriate midl.exe in it.
     let link_exe = cc::windows_registry::find_tool(target.as_str(), "link.exe")
         .expect("Failed to find link.exe");
-    link_exe.env().iter().for_each(|(k, v)| {
+    link_exe.get_envs().for_each(|(k, v)| {
         if k == "PATH" {
             let elements = (v.to_str().expect("path exploded"))
                 .split(';')
@@ -295,7 +295,7 @@ fn main() -> io::Result<()> {
     // witchcraft to get windows.h from the SDK to be able to be found, for the resource compiler
     let target = env::var("TARGET").unwrap();
     if let Some(tool) = cc::windows_registry::find_tool(target.as_str(), "cl.exe") {
-        for (key, value) in tool.env() {
+        for (key, value) in tool.get_envs() {
             env::set_var(key, value);
         }
     }

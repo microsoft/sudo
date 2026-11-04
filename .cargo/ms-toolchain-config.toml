@@ -1,25 +1,40 @@
-# -Cehcont_guard: Enable EH Continuation Metadata (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-eh-continuation-metadata).
-# -Ccontrol-flow-guard: Enable Control Flow Guard, needed for OneBranch's post-build analysis (https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard).
-[target.'cfg(target_os = "windows")']
-rustflags = [
-    "-Cehcont_guard",
-    "-Ccontrol-flow-guard",
-    "-Ctarget-feature=+crt-static",
-    "-Clink-args=/DEFAULTLIB:ucrt.lib /NODEFAULTLIB:vcruntime.lib /NODEFAULTLIB:msvcrt.lib /NODEFAULTLIB:libucrt.lib"
+global-credential-providers = [
+    "artifacts-cargo-credprovider",
+    "cargo:token",
+    "cargo:wincred",
 ]
 
-# This fixes the following linker error on x86:
-#   error LNK2019: unresolved external symbol _NdrClientCall4 referenced in function ...
-[target.'cfg(all(target_os = "windows", target_arch = "x86"))']
-rustflags = ["-Clink-args=/DEFAULTLIB:rpcrt4.lib"]
+[registries]
+Sudo_PublicPackages = { index = "sparse+https://pkgs.dev.azure.com/shine-oss/sudo/_packaging/Sudo_PublicPackages/Cargo/index/" }
+
+[source.crates-io]
+replace-with = "Sudo_PublicPackages"
+
+[target.'cfg(target_os = "windows")']
+rustflags = [
+    "-Dwarnings",
+    "-Cehcont_guard",
+    "-Ccontrol_flow_guard",
+    "-Ctarget-feature=+crt-static",
+    "-Clink-args=/DEFAULTLIB:ucrt.lib",
+    "-Clink-args=/NODEFAULTLIB:vcruntime.lib",
+    "-Clink-args=/NODEFAULTLIB:msvcrt.lib",
+    "-Clink-args=/NODEFAULTLIB:libucrt.lib",
+    "-lrpcrt4",
+]
 
 # -Clink-args=/DYNAMICBASE /CETCOMPAT: Enable "shadow stack" (https://learn.microsoft.com/en-us/cpp/build/reference/cetcompat)
 [target.'cfg(all(target_os = "windows", any(target_arch = "x86", target_arch = "x86_64")))']
-rustflags = ["-Clink-args=/DYNAMICBASE /CETCOMPAT"]
+rustflags = [
+    "-Clink-args=/DYNAMICBASE",
+    "-Clink-args=/CETCOMPAT",
+]
 
-# Setup the ADO Artifacts feed as a Registry: you'll need to use your own feed in your project that upstreams from crates.io.
-# For more details see https://eng.ms/docs/cloud-ai-platform/devdiv/one-engineering-system-1es/1es-docs/azure-artifacts/cargo
-[registries]
-Sudo_PublicPackages = { index = "sparse+https://pkgs.dev.azure.com/shine-oss/sudo/_packaging/Sudo_PublicPackages/Cargo/index/" }
-[source.crates-io]
-replace-with = "Sudo_PublicPackages"
+# The backtrace code for panics in Rust is almost as large as the entire editor.
+# = Huge reduction in binary size by removing all that.
+[profile.release]
+panic = "immediate-abort"
+
+[unstable]
+panic-immediate-abort = true
+build-std = ["std", "panic_abort"]

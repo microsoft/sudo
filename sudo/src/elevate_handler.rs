@@ -28,14 +28,14 @@ fn handle_to_stdio(h: HANDLE) -> Stdio {
 
 /// Prepare the target process, spawn it, and hand back the Child process. This will take care of setting up the handles for redirected input/output, and setting the environment variables.
 pub fn spawn_target_for_request(request: &ElevateRequest) -> Result<std::process::Child> {
-    tracing::trace_log_message(&format!("Spawning: {}...", &request.application));
+    tracing::trace_log_message(&format!("Spawning: {}...", request.application));
 
     let mut command_args = std::process::Command::new(request.application.clone());
 
     command_args.current_dir(request.target_dir.clone());
     command_args.args(request.args.clone());
 
-    tracing::trace_log_message(&format!("args: {:?}", &request.args));
+    tracing::trace_log_message(&format!("args: {:?}", request.args));
 
     if !request.env_vars.is_empty() {
         command_args.env_clear();
@@ -83,8 +83,8 @@ pub fn handle_elevation_request(request: &ElevateRequest) -> Result<Owned<HANDLE
     event_log_request(false, request);
 
     // Check if the requested sudo mode is allowed
-    let config: RegistryConfigProvider = Default::default();
-    let allowed_mode = get_allowed_mode(&config)?;
+    let config = PolicyConfig::from_registry()?;
+    let allowed_mode = config.allowed_mode;
     if request.sudo_mode > allowed_mode {
         tracing::trace_log_message(&format!(
             "Requested sudo mode is not allowed: {:?} ({:?})",

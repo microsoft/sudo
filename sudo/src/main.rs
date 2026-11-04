@@ -16,42 +16,43 @@ use helpers::*;
 use run_handler::run_target;
 use std::env;
 use tracing::*;
-use windows::{core::*, Win32::Foundation::*, Win32::System::Console::*};
+use windows::{
+    core::*,
+    Win32::{
+        Foundation::*,
+        System::{Console::*, Registry::HKEY_LOCAL_MACHINE},
+    },
+};
 
 // Clap does provide a nice macro for args, which defines args with a syntax
 // close to what the actual help text would be. Unfortunately, we're not using
 // that macro, because it doesn't play well with localization. The comments
 // throughout here help show how the macro would have worked.
-fn sudo_cli(allowed_mode: i32) -> Command {
-    const POLICY_DENIED_LABEL: i32 = E_ACCESS_DISABLED_BY_POLICY.0;
-
+fn sudo_cli(config: &PolicyConfig) -> Command {
     let mut app = Command::new(env!("CARGO_CRATE_NAME"));
-    match allowed_mode {
-        0 => {
-            // In this case, our error message has some VT in it, so we need to
-            // turn VT on before we eventually print the message. Fortunately,
-            // the `check_enabled_or_bail` will make sure to enable & restore VT
-            // mode before printing that error.
 
-            // Sudo is disabled. We want to inform them when they see the help text.
-            app = app
-                .about(r::IDS_SUDONAME.get())
-                .long_about(r::IDS_DISABLEDLONGABOUT.get())
-                .override_help(r::IDS_DISABLEDLONGABOUT.get());
-        }
-        POLICY_DENIED_LABEL => {
-            // Sudo is disabled by policy. The help text will be more specific.
-            app = app
-                .about(r::IDS_SUDONAME.get())
-                .long_about(r::IDS_DISABLEDBYPOLICY.get())
-                .override_help(r::IDS_DISABLEDBYPOLICY.get());
-        }
-        _ => {
-            // Sudo is enabled. The help text will be standard.
-            app = app
-                .about(r::IDS_SUDONAME.get())
-                .long_about(r::IDS_LONGABOUT.get());
-        }
+    if config.policy_mode == SudoMode::Disabled {
+        // Sudo is disabled by policy. The help text will be more specific.
+        app = app
+            .about(r::IDS_SUDONAME.get())
+            .long_about(r::IDS_DISABLEDBYPOLICY.get())
+            .override_help(r::IDS_DISABLEDBYPOLICY.get());
+    } else if config.allowed_mode == SudoMode::Disabled {
+        // In this case, our error message has some VT in it, so we need to
+        // turn VT on before we eventually print the message. Fortunately,
+        // the `check_enabled_or_bail` will make sure to enable & restore VT
+        // mode before printing that error.
+
+        // Sudo is disabled. We want to inform them when they see the help text.
+        app = app
+            .about(r::IDS_SUDONAME.get())
+            .long_about(r::IDS_DISABLEDLONGABOUT.get())
+            .override_help(r::IDS_DISABLEDLONGABOUT.get());
+    } else {
+        // Sudo is enabled. The help text will be standard.
+        app = app
+            .about(r::IDS_SUDONAME.get())
+            .long_about(r::IDS_LONGABOUT.get());
     }
 
     app = app
@@ -185,81 +186,33 @@ fn run_args() -> Vec<clap::Arg> {
     args
 }
 
-fn log_modes(requested_mode: Option<SudoMode>) {
-    let config: RegistryConfigProvider = Default::default();
-    let setting_mode = get_setting_mode(&config).unwrap_or(SudoMode::Disabled) as u32;
-    let policy_mode = {
-        let policy_enabled = windows_registry::LOCAL_MACHINE
-            .open("SOFTWARE\\Policies\\Microsoft\\Windows\\Sudo")
-            .and_then(|key| key.get_u32("Enabled"));
-        if let Err(e) = &policy_enabled {
-            if e.code() == E_FILENOTFOUND {
-                0xffffffff
-            } else {
-                0
-            }
-        } else {
-            policy_enabled.unwrap_or(0)
-        }
-    };
+fn log_modes(config: &PolicyConfig, requested_mode: Option<SudoMode>) {
     // Trace "disabled" as "they didn't pass a mode manually".
     trace_modes(
         requested_mode.unwrap_or(SudoMode::Disabled) as u32,
-        setting_mode,
-        policy_mode,
+        config.setting_mode as u32,
+        config.policy_mode as u32,
     );
 }
 
-fn check_enabled_or_bail() -> SudoMode {
-    let config: RegistryConfigProvider = Default::default();
+fn check_enabled_or_bail(config: &PolicyConfig) -> SudoMode {
     // First things first: Make sure we're enabled.
-    match get_allowed_mode(&config) {
-        Err(e) => {
-            if e.code() == E_ACCESSDENIED {
-                // Any time you want to use IDS_DISABLEDLONGABOUT, make sure you turned on VT first
-                let mode = enable_vt();
-                eprintln!("{}", r::IDS_DISABLEDLONGABOUT.get());
-                _ = restore_console_mode(mode);
-            } else if e.code() == ERROR_ACCESS_DISABLED_BY_POLICY.into() {
-                eprintln!("{}", r::IDS_DISABLEDBYPOLICY.get());
-            } else {
-                eprintln!("{} {}", r::IDS_UNKNOWNERROR.get(), e);
-            }
-            std::process::exit(e.code().0);
-        }
-        Ok(SudoMode::Disabled) => {
-            // Any time you want to use IDS_DISABLEDLONGABOUT, make sure you turned on VT first
-            let mode = enable_vt();
-            eprintln!("{}", r::IDS_DISABLEDLONGABOUT.get());
-            _ = restore_console_mode(mode);
-            std::process::exit(E_ACCESSDENIED.0);
-        }
-        Ok(mode) => mode,
+    if config.policy_mode == SudoMode::Disabled {
+        eprintln!("{}", r::IDS_DISABLEDBYPOLICY.get());
+        std::process::exit(E_ACCESS_DISABLED_BY_POLICY.0);
     }
+
+    if config.allowed_mode == SudoMode::Disabled {
+        // Any time you want to use IDS_DISABLEDLONGABOUT, make sure you turned on VT first
+        let mode = enable_vt();
+        eprintln!("{}", r::IDS_DISABLEDLONGABOUT.get());
+        _ = restore_console_mode(mode);
+        std::process::exit(E_ACCESSDENIED.0);
+    }
+
+    config.allowed_mode
 }
 
-/// We want to be able to conditionally control what the help text shows,
-/// depending on if sudo is enabled, disabled, or disabled by policy. This
-/// helper lets us do that more easily. This will return:
-/// * 0 if sudo is disabled
-/// * E_ACCESS_DISABLED_BY_POLICY if sudo is disabled by policy
-/// * or the current mode (>0), if sudo is enabled.
-fn allowed_mode_for_help() -> i32 {
-    let config: RegistryConfigProvider = Default::default();
-    match get_allowed_mode(&config) {
-        Err(e) => {
-            if e.code() == E_ACCESSDENIED {
-                0
-            } else if e.code() == E_ACCESS_DISABLED_BY_POLICY {
-                E_ACCESS_DISABLED_BY_POLICY.0
-            } else {
-                0
-            }
-        }
-        Ok(SudoMode::Disabled) => 0,
-        Ok(mode) => mode.into(),
-    }
-}
 /// Try to enable VT processing in the console, but also ignore any errors.
 fn enable_vt() -> CONSOLE_MODE {
     enable_vt_or_err().unwrap_or_default()
@@ -289,15 +242,16 @@ fn main() {
     enable_tracing();
 
     trace_log_message(&format!("raw commandline: {:?}", env::args_os()));
-    let mode_for_help = allowed_mode_for_help();
-    let matches = sudo_cli(mode_for_help).get_matches();
 
-    let res = match matches.subcommand() {
-        Some(("elevate", sub_matches)) => do_elevate(sub_matches),
-        Some(("run", sub_matches)) => do_run(sub_matches),
-        Some(("config", sub_matches)) => do_config(sub_matches),
-        _ => do_run(&matches),
-    };
+    let res = PolicyConfig::from_registry().and_then(|config| {
+        let matches = sudo_cli(&config).get_matches();
+        match matches.subcommand() {
+            Some(("elevate", sub_matches)) => do_elevate(&config, sub_matches),
+            Some(("run", sub_matches)) => do_run(&config, sub_matches),
+            Some(("config", sub_matches)) => do_config(&config, sub_matches),
+            _ => do_run(&config, &matches),
+        }
+    });
 
     let code = res.unwrap_or_else(|err| {
         let hr = err.code();
@@ -325,7 +279,7 @@ fn main() {
     std::process::exit(code)
 }
 
-fn do_run(matches: &ArgMatches) -> Result<i32> {
+fn do_run(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
     let commandline = matches
         .get_many::<String>("COMMANDLINE")
         .into_iter()
@@ -339,7 +293,7 @@ fn do_run(matches: &ArgMatches) -> Result<i32> {
         return Ok(commandline.is_empty().into());
     }
     let requested_dir: Option<String> = matches.get_one::<String>("chdir").map(|s| s.into());
-    let allowed_mode = check_enabled_or_bail();
+    let allowed_mode = check_enabled_or_bail(config);
     let copy_env = matches.get_flag("copyEnv");
 
     if !can_current_user_elevate()? {
@@ -358,7 +312,7 @@ fn do_run(matches: &ArgMatches) -> Result<i32> {
         None
     };
 
-    log_modes(requested_mode);
+    log_modes(config, requested_mode);
 
     if let Some(mode) = requested_mode {
         if mode > allowed_mode {
@@ -377,8 +331,8 @@ fn do_run(matches: &ArgMatches) -> Result<i32> {
     run_target(copy_env, &commandline, actual_mode, requested_dir)
 }
 
-fn do_elevate(matches: &ArgMatches) -> Result<i32> {
-    _ = check_enabled_or_bail();
+fn do_elevate(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
+    _ = check_enabled_or_bail(config);
 
     let parent_pid = matches.get_one::<String>("PARENT").unwrap().parse::<u32>();
     let nonce = matches.get_one::<String>("NONCE").unwrap().parse::<u32>();
@@ -407,7 +361,7 @@ fn do_elevate(matches: &ArgMatches) -> Result<i32> {
     result
 }
 
-fn do_config(matches: &ArgMatches) -> Result<i32> {
+fn do_config(config: &PolicyConfig, matches: &ArgMatches) -> Result<i32> {
     let mode = match matches.get_one::<String>("enable") {
         Some(mode) => {
             let mode = match mode.as_str() {
@@ -422,10 +376,10 @@ fn do_config(matches: &ArgMatches) -> Result<i32> {
                     std::process::exit(-1);
                 }
             };
-            try_enable_sudo(mode)?;
+            try_enable_sudo(config, mode)?;
             mode
         }
-        None => check_enabled_or_bail(),
+        None => check_enabled_or_bail(config),
     };
 
     match mode {
@@ -438,14 +392,13 @@ fn do_config(matches: &ArgMatches) -> Result<i32> {
     Ok(0)
 }
 
-fn try_enable_sudo(requested_mode: SudoMode) -> Result<()> {
+fn try_enable_sudo(config: &PolicyConfig, requested_mode: SudoMode) -> Result<()> {
     let elevated = is_running_elevated()?;
     if !elevated {
         eprintln!("{}", r::IDS_REQUIREADMINTOCONFIG.get());
         std::process::exit(-1);
     }
-    let config: RegistryConfigProvider = Default::default();
-    let max_mode = get_allowed_mode_from_policy(&config)?;
+    let max_mode = config.policy_mode;
     if requested_mode > max_mode {
         match max_mode {
             SudoMode::Disabled => eprintln!("{}", r::IDS_DISABLEDBYPOLICY.get()),
@@ -456,10 +409,12 @@ fn try_enable_sudo(requested_mode: SudoMode) -> Result<()> {
         std::process::exit(-1);
     }
 
-    let result = windows_registry::LOCAL_MACHINE
-        .create("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Sudo")
-        .and_then(|key| key.set_u32("Enabled", requested_mode.into()));
-
+    let result = reg_set_u32(
+        HKEY_LOCAL_MACHINE,
+        w!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Sudo"),
+        w!("Enabled"),
+        requested_mode.into(),
+    );
     if let Err(err) = result {
         eprintln!("{} {}", r::IDS_ERRORSETTINGMODE.get(), err);
         return Err(err);

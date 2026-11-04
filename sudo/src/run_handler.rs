@@ -11,6 +11,7 @@ use std::env;
 use std::ffi::{CString, OsStr};
 use std::path::Path;
 use windows::Wdk::Foundation::{NtQueryObject, ObjectBasicInformation};
+use windows::Win32::Security::Cryptography::ProcessPrng;
 use windows::Win32::System::WindowsProgramming::PUBLIC_OBJECT_BASIC_INFORMATION;
 use windows::{
     core::*, Wdk::System::Threading::*, Win32::Foundation::*, Win32::Storage::FileSystem::*,
@@ -347,18 +348,12 @@ fn do_request(req: ElevateRequest, copy_env: bool, manually_requested_dir: bool)
 /// `RtlGenRandom` to generate the number. This is how the core language does it:
 /// https://github.com/rust-lang/rust/pull/45370
 fn random_nonce() -> u32 {
-    #[link(name = "advapi32")]
-    extern "system" {
-        // This function's real name is `RtlGenRandom`.
-        fn SystemFunction036(RandomBuffer: *mut u8, RandomBufferLength: u32) -> BOOLEAN;
-    }
-
     let mut nonce = 0u32;
     unsafe {
-        SystemFunction036(
-            (&mut nonce as *mut u32) as *mut u8,
-            std::mem::size_of::<u32>() as _,
-        );
+        _ = ProcessPrng(std::slice::from_raw_parts_mut(
+            &raw mut nonce as *mut u8,
+            size_of::<u32>(),
+        ));
     }
     nonce
 }
@@ -480,7 +475,7 @@ fn send_request_via_rpc(req: &ElevateRequest, nonce: u32) -> Result<i32> {
         unsafe {
             let mut info: PUBLIC_OBJECT_BASIC_INFORMATION = Default::default();
             NtQueryObject(
-                *child_handle,
+                Some(*child_handle),
                 ObjectBasicInformation,
                 Some(&mut info as *mut _ as _),
                 std::mem::size_of_val(&info) as _,
